@@ -4,7 +4,10 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 import time
-import bittensor as bt
+try:
+    import bittensor as bt
+except ImportError:
+    bt = None
 
 import google.cloud.logging
 from google.cloud.logging_v2.handlers import setup_logging
@@ -141,13 +144,21 @@ def close_gcp_logging(handler, client):
             bt.logging.warning(f"Error closing GCP log client: {e}")
 
 
+def _log_info(msg):
+    """Safe logging — use bt.logging if available, else print."""
+    if bt is not None:
+        bt.logging.info(msg)
+    else:
+        print(msg)
+
+
 def print_execution_time(func):
     @functools.wraps(func)
     async def async_wrapper(*args, **kwargs):
         start = time.time()
         result = await func(*args, **kwargs)
         end = time.time()
-        bt.logging.info(
+        _log_info(
             f"Execution time for {func.__name__}: {end - start:.4f} seconds"
         )
         return result
@@ -157,7 +168,7 @@ def print_execution_time(func):
         start = time.time()
         result = func(*args, **kwargs)
         end = time.time()
-        bt.logging.info(
+        _log_info(
             f"Execution time for {func.__name__}: {end - start:.4f} seconds"
         )
         return result

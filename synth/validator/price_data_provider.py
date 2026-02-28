@@ -9,7 +9,12 @@ from tenacity import (
     wait_random_exponential,
 )
 import numpy as np
-import bittensor as bt
+try:
+    import bittensor as bt
+    _retry_before = before_log(bt.logging._logger, logging.DEBUG)
+except ImportError:
+    bt = None
+    _retry_before = None
 
 
 from synth.db.models import ValidatorRequest
@@ -47,13 +52,18 @@ class PriceDataProvider:
         stop=stop_after_attempt(5),
         wait=wait_random_exponential(multiplier=7),
         reraise=True,
-        before=before_log(bt.logging._logger, logging.DEBUG),
+        **(dict(before=_retry_before) if _retry_before else {}),
     )
     @print_execution_time
-    def fetch_data(self, validator_request: ValidatorRequest) -> list:
+    def fetch_data(self, validator_request: ValidatorRequest, resolution: int = 1, return_raw_data: bool = False) -> list:
         """
         Fetch real prices data from an external REST service.
         Returns an array of time points with prices.
+
+        Args:
+            validator_request: ValidatorRequest with asset, start_time, etc.
+            resolution: Resolution for Pyth API (1=1min, default)
+            return_raw_data: If True, return raw API JSON instead of transformed data
 
         :return: List of dictionaries with 'time' and 'price' keys.
         """
@@ -65,7 +75,7 @@ class PriceDataProvider:
 
         params = {
             "symbol": self._get_token_mapping(str(validator_request.asset)),
-            "resolution": 1,
+            "resolution": resolution,
             "from": start_time_int,
             "to": end_time_int,
         }
@@ -74,6 +84,9 @@ class PriceDataProvider:
         response.raise_for_status()
 
         data = response.json()
+
+        if return_raw_data:
+            return data
 
         transformed_data = self._transform_data(
             data,
