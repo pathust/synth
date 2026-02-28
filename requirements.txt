@@ -22,3 +22,13 @@ httpx==0.28.1
 httpx[http2]
 anyio==4.12.1
 numba==0.63.1
+
+# === Simulation & Data (ported from sn50) ===
+pymysql>=1.1.0
+statsmodels
+scipy
+arch
+tqdm
+coinmetrics-api-client
+yfinance
+matplotlib
