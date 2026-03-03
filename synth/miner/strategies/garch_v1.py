@@ -1,0 +1,55 @@
+"""
+garch_v1.py — GARCH(p,q) Student-t strategy (original).
+
+Wraps synth.miner.core.garch_simulator.
+"""
+
+from typing import Optional
+import numpy as np
+
+from synth.miner.strategies.base import BaseStrategy
+from synth.miner.core.garch_simulator import (
+    simulate_single_price_path_with_garch,
+)
+
+
+class GarchV1Strategy(BaseStrategy):
+    name = "garch_v1"
+    description = "GARCH(p,q) with Student-t innovations (original simulator)"
+    supported_assets = []  # all assets
+    supported_frequencies = ["high", "low"]
+    default_params = {
+        "mean": "Constant",
+        "p": 1,
+        "q": 1,
+    }
+    param_grid = {
+        "mean": ["Zero", "Constant"],
+        "p": [1, 2],
+        "q": [1],
+    }
+
+    def simulate(
+        self,
+        prices_dict: dict,
+        asset: str,
+        time_increment: int,
+        time_length: int,
+        n_sims: int,
+        seed: Optional[int] = 42,
+        **kwargs,
+    ) -> np.ndarray:
+        params = self.get_default_params()
+        params.update(kwargs)
+        return simulate_single_price_path_with_garch(
+            prices_dict,
+            asset=asset,
+            time_increment=time_increment,
+            time_length=time_length,
+            n_sims=n_sims,
+            seed=seed,
+            **params,
+        )
+
+
+strategy = GarchV1Strategy()
