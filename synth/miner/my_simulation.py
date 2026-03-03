@@ -58,38 +58,55 @@ def fetch_price_data(asset: str, time_increment: int, only_load: bool = False):
     Returns:
         dict: {time_frame: {timestamp: price, ...}}
     """
-    time_frame = "5m" if time_increment == 300 else str(time_increment)
+    time_frame = "1m" if time_increment == 60 else ("5m" if time_increment == 300 else str(time_increment))
     hist_price_data = data_handler.load_price_data(asset, time_frame)
 
-    if not hist_price_data:
-        print(f"[WARN] No historical data found for {asset}/{time_frame} in DB, fetching from API...")
-        # No data in DB → fetch historical data from API (reduced to 2 weeks to avoid API limits)
-        start_time_crawl = (
-            datetime.datetime.now(datetime.timezone.utc)
-            .replace(second=0, microsecond=0)
-            - datetime.timedelta(days=14)
+    current_time = datetime.datetime.now(datetime.timezone.utc).replace(second=0, microsecond=0)
+    target_start = current_time - datetime.timedelta(days=45)
+
+    if not hist_price_data or time_frame not in hist_price_data or not hist_price_data[time_frame]:
+        print(f"[WARN] No historical data found for {asset}/{time_frame} in DB, fetching from API backwards...")
+        data_handler.fetch_historical_data_backwards(
+            asset, current_time, days_back=45, time_frame=time_frame, batch_minutes=60
         )
-        hist_price_data = data_handler.fetch_multi_timeframes_price_data(
-            asset, start_time_crawl, weeks=2, time_frame=time_frame
-        )
+        hist_price_data = data_handler.load_price_data(asset, time_frame)
     else:
         if only_load:
             total = sum(len(v) if isinstance(v, dict) else 0 for v in hist_price_data.values())
             print(f"[INFO] Loaded {total} data points for {asset}/{time_frame} (only_load=True)")
             return hist_price_data
 
-        # Check if data is stale → fetch additional data
-        last_timestamp = int(max(hist_price_data[time_frame].keys()))
-        last_datetime = datetime.datetime.fromtimestamp(
-            last_timestamp, datetime.timezone.utc
-        )
-        current_timestamp = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        staleness = current_timestamp - last_timestamp
-        if staleness >= time_increment * 1:
-            print(f"[INFO] Data stale by {staleness:.0f}s (>{time_increment}s), fetching update...")
-            data_handler.fetch_multi_timeframes_price_data(
-                asset, last_datetime, weeks=1, time_frame=time_frame
+        # 1. Backfill missing past data if oldest timestamp is too recent
+        try:
+            first_timestamp = int(min(hist_price_data[time_frame].keys()))
+            if first_timestamp > target_start.timestamp() + 86400: # if gap is more than 1 day
+                oldest_dt = datetime.datetime.fromtimestamp(first_timestamp, datetime.timezone.utc)
+                days_to_backfill = (oldest_dt - target_start).days
+                if days_to_backfill > 0:
+                    print(f"[WARN] Data for {asset}/{time_frame} only goes back to {oldest_dt.strftime('%Y-%m-%d')}. Backfilling {days_to_backfill} days backwards...")
+                    data_handler.fetch_historical_data_backwards(
+                        asset, oldest_dt, days_back=days_to_backfill, time_frame=time_frame, batch_minutes=60
+                    )
+        except Exception as e:
+            print(f"[ERROR] Checking oldest timestamp for {asset}: {e}")
+
+        # 2. Forward fill if data is stale
+        try:
+            last_timestamp = int(max(hist_price_data[time_frame].keys()))
+            last_datetime = datetime.datetime.fromtimestamp(
+                last_timestamp, datetime.timezone.utc
             )
+            current_timestamp = current_time.timestamp()
+            staleness = current_timestamp - last_timestamp
+            if staleness >= time_increment * 1: # if more than 1 increment missing
+                print(f"[INFO] Data stale by {staleness:.0f}s (>{time_increment}s), fetching update forward...")
+                data_handler.fetch_multi_timeframes_price_data(
+                    asset, last_datetime, weeks=1, time_frame=time_frame
+                )
+        except Exception as e:
+            print(f"[ERROR] Checking latest timestamp for {asset}: {e}")
+
+        # Reload after potential fetches
         hist_price_data = data_handler.load_price_data(asset, time_frame)
 
     total = sum(len(v) if isinstance(v, dict) else 0 for v in hist_price_data.values()) if hist_price_data else 0
@@ -106,7 +123,8 @@ def simulate_crypto_price_paths(
     num_simulations: int,
     simulate_fn: Callable,
     max_data_points: Optional[int] = 100000,
-    seed: Optional[int] = 42
+    seed: Optional[int] = 42,
+    **kwargs
 ) -> np.ndarray:
     """
     Load historical price data, filter by start_time, and run simulation.
@@ -131,7 +149,7 @@ def simulate_crypto_price_paths(
     """
     time_frame = "5m" if time_increment == 300 else str(time_increment)
 
-    only_load = True if asset in ASSETS_PERIODIC_FETCH_PRICE_DATA else False
+    only_load = True # Force only load for backtesting
     hist_price_data = fetch_price_data(asset, time_increment, only_load=only_load)
 
     if not hist_price_data or time_frame not in hist_price_data:
@@ -169,6 +187,7 @@ def simulate_crypto_price_paths(
         time_increment=time_increment,
         time_length=time_length,
         n_sims=num_simulations,
-        seed=seed
+        seed=seed,
+        **kwargs
     )
     return result

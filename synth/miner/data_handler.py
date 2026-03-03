@@ -65,6 +65,7 @@ class DataHandler:
         # sn50 L28-31
         self.TIMEFRAME_TO_TIME_INCREMENT = {
             "5m": 5 * 60,
+            "1m": 60,
         }
         self.TIME_INCREMENT_TO_TIMEFRAME = {
             v: k for k, v in self.TIMEFRAME_TO_TIME_INCREMENT.items()
@@ -274,6 +275,115 @@ class DataHandler:
             print(f"[WARN] No data fetched for {asset}/{time_frame}, skipping save")
         return results
 
+    def fetch_historical_data_backwards(
+        self,
+        asset: str,
+        end_time_utc: datetime.datetime,
+        days_back: int = 45,
+        time_frame: str = "1m",
+        batch_minutes: int = 60
+    ):
+        """
+        Fetch historical price data backwards from `end_time_utc` in batches of `batch_minutes`.
+        Saves each batch to MySQL immediately.
+        """
+        target_start_time = end_time_utc - datetime.timedelta(days=days_back)
+        
+        if time_frame in self.TIMEFRAME_TO_TIME_INCREMENT:
+            tf_name = time_frame
+            inc = self.TIMEFRAME_TO_TIME_INCREMENT[time_frame]
+        else:
+            tf_name = time_frame
+            inc = int(time_frame)
+
+        batch_seconds = batch_minutes * 60
+        current_end_time = end_time_utc
+        
+        print(f"[DataHandler] Backfilling {asset}/{time_frame} backwards for {days_back} days (batches of {batch_minutes}m)")
+        
+        total_fetched = 0
+        batch_idx = 0
+        while current_end_time > target_start_time:
+            batch_idx += 1
+            current_start_time = current_end_time - datetime.timedelta(seconds=batch_seconds)
+            
+            if current_start_time < target_start_time:
+                current_start_time = target_start_time
+                
+            time_length_i = int((current_end_time - current_start_time).total_seconds())
+            
+            st_time = time.time()
+            transformed_data = {}
+            executor = ThreadPoolExecutor(max_workers=2)
+            try:
+                # Submit both tasks concurrently
+                future_cm = (
+                    executor.submit(
+                        self.fetch_cm_data, asset, current_start_time,
+                        current_end_time, inc
+                    )
+                    if asset not in ASSETS_PERIODIC_FETCH_PRICE_DATA
+                    else None
+                )
+                future_synth = executor.submit(
+                    self.fetch_synth_data, asset, current_start_time, time_length_i, inc
+                )
+
+                futures_list = [future_synth]
+                futures_dict = {future_synth: "Synth"}
+                if future_cm is not None:
+                    futures_list.append(future_cm)
+                    futures_dict[future_cm] = "CM"
+
+                for future in as_completed(futures_list):
+                    try:
+                        result = future.result()
+                        source = futures_dict[future]
+                        if result and len(result) > 0:
+                            transformed_data = result
+                            # Cancel the other future
+                            if future == future_cm:
+                                future_synth.cancel()
+                            elif future_cm is not None:
+                                future_cm.cancel()
+                            break
+                    except Exception as e:
+                        source = futures_dict[future]
+                        print(f"[{source}] Error fetching backward data: {e}")
+                        traceback.print_exc()
+                        continue
+            finally:
+                executor.shutdown(wait=False)
+
+            if transformed_data:
+                # Filter data exactly within the batch to avoid bleed
+                start_ts = int(current_start_time.timestamp())
+                end_ts = int(current_end_time.timestamp())
+                filtered_data = {
+                    k: v for k, v in transformed_data.items() 
+                    if start_ts <= int(k) <= end_ts
+                }
+                
+                if filtered_data:
+                    self.save_price_data(asset, time_frame, {tf_name: filtered_data})
+                    total_fetched += len(filtered_data)
+                    elapsed = time.time() - st_time
+                    print(
+                        f"[DataHandler] Batch backward {batch_idx} "
+                        f"({current_start_time.strftime('%m-%d %H:%M')} -> {current_end_time.strftime('%m-%d %H:%M')}): "
+                        f"{len(filtered_data)} points saved, {elapsed:.1f}s elapsed"
+                    )
+                else:
+                    print(f"[DataHandler] Batch backward {batch_idx} returned data but all filtered out.")
+            else:
+                 print(f"[DataHandler] Batch backward {batch_idx} returned empty data.")
+            
+            # Step backwards
+            current_end_time = current_start_time
+
+        print(f"[DataHandler] Backfill backward complete for {asset}/{time_frame}: {total_fetched} total new points")
+        return total_fetched
+
     @staticmethod
     def _transform_data(
         data, start_time_int: int, time_increment: int, time_length: int
@@ -371,23 +481,12 @@ class DataHandler:
 
             with open(save_path, "w") as f:
                 json.dump(latest_prices, f, ensure_ascii=False)
+            return latest_prices
         else:
-            # Changed from sn50: mongo_handler → mysql_handler
-            latest_prices_info = self.mysql_handler.load_price_data(asset, time_frame)
-            if latest_prices_info:
-                latest_prices = latest_prices_info.get("prices", {})
-                for tf in prices.keys():
-                    if tf not in latest_prices:
-                        latest_prices[tf] = {}
-                    latest_prices[tf].update(prices[tf])
-                    latest_prices[tf] = keep_last_k_from_dict(
-                        latest_prices[tf], k=self.MAX_DATA_POINTS_TO_KEEP
-                    )
-            else:
-                latest_prices = prices
-            self.mysql_handler.save_price_data(asset, time_frame, latest_prices)
-
-        return latest_prices
+            # We don't need to load the database dict to merge memory anymore.
+            # mysql_handler will cleanly execute individual UPSERTS row-by-row onto the disk.
+            self.mysql_handler.save_price_data(asset, time_frame, prices)
+            return prices
 
     def compare_data(
         self, asset: str, start_time: datetime.datetime,

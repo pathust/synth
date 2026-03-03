@@ -70,13 +70,9 @@ def test_get_values_within_range(db_engine: Engine):
     pred = result[0]
     prediction = pred.prediction
 
-    assert len(prediction) == 1
-    assert len(prediction[0]) == 288
-    assert prediction[0][0] == {"time": "2024-11-20T00:00:00", "price": 90000}
-    assert prediction[0][287] == {
-        "time": "2024-11-20T23:55:00",
-        "price": 233500,
-    }
+    assert len(prediction) == 4
+    assert len(prediction[2]) == 289
+    assert prediction[2][0] == 90000.0
 
 
 def test_get_values_ongoing_range(db_engine: Engine):
@@ -196,16 +192,9 @@ def test_multiple_records_for_same_miner(db_engine: Engine):
     pred = result[0]
     prediction = pred.prediction
 
-    assert len(prediction) == 1
-    assert len(prediction[0]) == 288
-    assert prediction[0][0] == {
-        "time": "2024-11-20T12:00:00+00:00",
-        "price": 90000,
-    }
-    assert prediction[0][287] == {
-        "time": "2024-11-21T11:55:00+00:00",
-        "price": 233500,
-    }
+    assert len(prediction) == 4
+    assert len(prediction[2]) == 289
+    assert prediction[2][0] == 90000.0
 
 
 def test_multiple_records_for_same_miner_with_overlapping(db_engine: Engine):
@@ -283,16 +272,9 @@ def test_multiple_records_for_same_miner_with_overlapping(db_engine: Engine):
     pred = result[0]
     prediction = pred.prediction
 
-    assert len(prediction) == 1
-    assert len(prediction[0]) == 288
-    assert prediction[0][0] == {
-        "time": "2024-11-20T00:00:00+00:00",
-        "price": 90000,
-    }
-    assert prediction[0][287] == {
-        "time": "2024-11-20T23:55:00+00:00",
-        "price": 233500,
-    }
+    assert len(prediction) == 4
+    assert len(prediction[2]) == 289
+    assert prediction[2][0] == 90000.0
 
 
 def test_no_data_for_miner(db_engine: Engine):

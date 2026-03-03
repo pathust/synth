@@ -20,9 +20,9 @@ def compute_log_returns(prices: pd.Series) -> pd.Series:
     """Compute log returns from price series (aligned)."""
     return np.log(prices).diff().dropna()
 
-def fit_garch_studentt(returns: pd.Series, mean: str = "Constant"):
+def fit_garch_studentt(returns: pd.Series, mean: str = "Constant", p: int = 1, q: int = 1):
     """
-    Fit GARCH(1,1) with Student-t innovations.
+    Fit GARCH(p,q) with Student-t innovations.
     returns: pandas Series of log returns
     mean: "Zero" or "Constant" or "AR"
     Returns the fitted result object (ARCHModelResult).
@@ -31,9 +31,9 @@ def fit_garch_studentt(returns: pd.Series, mean: str = "Constant"):
     model = arch_model(returns * 10000.0,  # scale to bps to stabilize numerics
                        mean=mean,
                        vol="GARCH",
-                       p=1, q=1,
+                       p=p, q=q,
                        dist="StudentsT")
-    res = model.fit(disp="off")
+    res = model.fit(disp="off", show_warning=False)
     return res
 
 def simulate_garch_paths(fitted_res,
@@ -140,9 +140,9 @@ def simulate_garch_paths(fitted_res,
     }
     return prices, meta
 
-def simulate_single_price_path_with_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42):
+def simulate_single_price_path_with_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs):
     """
-    Simulate a single price path with GARCH(1,1) model.
+    Simulate a single price path with GARCH model.
     - prices_dict: dictionary of prices {"timestamp": "price"}
     - time_increment: time increment in seconds
     - time_length: time length in seconds
@@ -164,8 +164,12 @@ def simulate_single_price_path_with_garch(prices_dict, asset: str, time_incremen
     print(f"First few prices: {hist_prices.head()}")
     returns = compute_log_returns(hist_prices)
 
-    print("[INFO] Fitting GARCH model on historical price data, length: ", len(returns))
-    res = fit_garch_studentt(returns, mean="Constant")
+    mean_model = kwargs.get("mean", "Constant")
+    p_param = kwargs.get("p", 1)
+    q_param = kwargs.get("q", 1)
+
+    print(f"[INFO] Fitting GARCH model on historical price data, length: {len(returns)}")
+    res = fit_garch_studentt(returns, mean=mean_model, p=p_param, q=q_param)
     print(res.summary().as_text()[:400])  # truncated summary
 
     # simulate n_sims paths

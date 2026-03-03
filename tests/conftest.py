@@ -22,7 +22,8 @@ def setup(request):
 @pytest.fixture(scope="module", autouse=True)
 def apply_migrations(setup):
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    alembic_command = ["alembic", "upgrade", "head"]
+    import sys
+    alembic_command = [sys.executable, "-m", "alembic", "upgrade", "head"]
     subprocess.run(alembic_command, check=True, cwd=project_root)
 
 

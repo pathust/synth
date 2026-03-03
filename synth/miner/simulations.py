@@ -34,12 +34,6 @@ from synth.miner.core.grach_simulator_v2 import (
 from synth.miner.core.grach_simulator_v2_1 import (
     simulate_single_price_path_with_garch as simulate_single_price_path_with_garch_v2_1,
 )
-from synth.miner.core.aparch_simulator import simulate_aparch_optimized
-from synth.miner.core.spyx_simulator import (
-    simulate_spyx_sniper,
-    simulate_spyx_robust,
-    simulate_fhs_antithetic,
-)
 from synth.miner.core.stock_simulator import simulate_seasonal_stock
 from synth.miner.core.stock_simulator_v2 import simulate_weekly_seasonal_optimized
 

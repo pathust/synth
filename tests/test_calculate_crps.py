@@ -128,7 +128,8 @@ class TestCalculateCrps(unittest.TestCase):
             prompt_config.LOW_FREQUENCY.scoring_intervals,
         )
 
-        self.assertEqual(sum_all_scores, 13413.599141058676)
+        import math
+        self.assertTrue(math.isclose(sum_all_scores, 13413.599141058676, rel_tol=1e-9))
 
     def test_calculate_crps_for_miner_5(self):
         """

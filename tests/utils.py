@@ -14,12 +14,13 @@ from synth.db.models import Miner
 def generate_values(start_time: datetime):
     """Generate values for the given start_time."""
     values = []
-    for i in range(0, 24 * 60, 5):  # 5-minute intervals for 1 day
-        time_point = (start_time + timedelta(minutes=i)).isoformat()
-        price = 90000 + i * 100  # Random price
-        values.append({"time": time_point, "price": price})
+    import random
+    import math
+    for i in range(0, 24 * 60 + 1, 5):  # 5-minute intervals for 1 day, inclusive of end_time
+        price = 90000 + i * 100 * math.sin(i * 0.1)  # Smooth random price
+        values.append(price)
 
-    return [values]
+    return tuple([int(start_time.timestamp()), 300] + [values] * 2)
 
 
 def prepare_random_predictions(db_engine: Engine, start_time: str):
@@ -43,22 +44,22 @@ def prepare_random_predictions(db_engine: Engine, start_time: str):
 
     simulation_data = {
         miner_uids[0]: (
-            generate_simulations(start_time=start_time),
+            generate_values(datetime.fromisoformat(start_time)),
             response_validation_v2.CORRECT,
             "1.2",
         ),
         miner_uids[1]: (
-            generate_simulations(start_time=start_time),
+            generate_values(datetime.fromisoformat(start_time)),
             response_validation_v2.CORRECT,
             "3",
         ),
         miner_uids[2]: (
-            generate_simulations(start_time=start_time),
+            generate_values(datetime.fromisoformat(start_time)),
             response_validation_v2.CORRECT,
             "15",
         ),
         miner_uids[3]: (
-            generate_simulations(start_time=start_time),
+            generate_values(datetime.fromisoformat(start_time)),
             "time out or internal server error (process time is None)",
             "2.1",
         ),

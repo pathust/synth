@@ -127,6 +127,8 @@ def _crps_worker(args):
             )
 
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return (
                 miner_uid,
                 -1,

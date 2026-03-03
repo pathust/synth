@@ -57,20 +57,22 @@ def compute_log_returns(prices: pd.Series) -> pd.Series:
 
 def fit_garch_optimized(returns: pd.Series, config: dict):
     """Fit model với config tối ưu, có xử lý lỗi hội tụ."""
+    p = config.get("p", 1)
+    q = config.get("q", 1)
     # Thử fit lần 1
     model = arch_model(returns * config["scale"],
                        mean=config["mean_model"],
                        vol="GARCH",
-                       p=1, q=1,
+                       p=p, q=q,
                        dist=config["dist"])
     
     # Tăng maxiter để đảm bảo hội tụ cho dữ liệu nhiễu
     try:
-        res = model.fit(disp="off", options={"maxiter": 200})
+        res = model.fit(disp="off", options={"maxiter": 200}, show_warning=False)
     except:
         # Fallback nếu không hội tụ: đổi sang rescale tự động
         print("[WARN] Model fit failed, retrying with rescaling...")
-        res = model.fit(disp="off", options={"maxiter": 500}, rescale=True)
+        res = model.fit(disp="off", options={"maxiter": 500}, rescale=True, show_warning=False)
     return res
 
 def simulate_garch_paths(fitted_res, S0, steps, n_sims, config, seed=None):
@@ -107,7 +109,10 @@ def simulate_garch_paths(fitted_res, S0, steps, n_sims, config, seed=None):
     returns_bps = np.zeros((steps, n_sims))
     
     for t in range(steps):
-        # GARCH(1,1) equation
+        # GARCH(p,q) equation simplified for 1,1 visualization backward compat, actual relies on fit
+        # To support p,q correctly we use dynamic access, but for speed we approximate or rely on res
+        # For full p>1 q>1 support in manual simulation, arch model has a forecast function.
+        # But this simulator explicitly hardcodes p=1, q=1:
         sigma2 = omega + alpha * (eps_prev**2) + beta * (sigma_prev**2)
         sigma_t = np.sqrt(np.maximum(sigma2, 1e-12))
 
@@ -134,9 +139,9 @@ def simulate_garch_paths(fitted_res, S0, steps, n_sims, config, seed=None):
 # ==========================================
 # 🚀 3. MAIN SIMULATION CONTROLLER
 # ==========================================
-def simulate_single_price_path_with_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42):
+def simulate_single_price_path_with_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs):
     """
-    Simulate a single price path with GARCH(1,1) model.
+    Simulate a single price path with GARCH model.
     - prices_dict: dictionary of prices {"timestamp": "price"}
     - time_increment: time increment in seconds
     - time_length: time length in seconds
@@ -151,6 +156,7 @@ def simulate_single_price_path_with_garch(prices_dict, asset: str, time_incremen
     
     # 2. Lấy cấu hình tối ưu
     config = get_optimal_config(asset, time_increment)
+    config.update(kwargs) # Override with tuning parameters
     print(f"Config: {config}")
     
     # 3. Cắt gọt dữ liệu (Lookback Window)

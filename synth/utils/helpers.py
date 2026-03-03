@@ -13,11 +13,14 @@ def round_to_8_significant_digits(num: float) -> float:
     """Round a float to 8 significant digits."""
     if num == 0:
         return 0.0
-    from math import log10, floor
+    import math
+
+    if math.isinf(num) or math.isnan(num):
+        return num
 
     digits = 8
     # calculate the order of magnitude of the number
-    magnitude = floor(log10(abs(num)))
+    magnitude = math.floor(math.log10(abs(num)))
     # calculate the decimal places to round to
     decimal_places = digits - magnitude - 1
 
@@ -50,7 +53,7 @@ def convert_prices_to_time_format(
 
 
 def adjust_predictions(predictions: list) -> list:
-    if not isinstance(predictions, list):
+    if not isinstance(predictions, (list, tuple)):
         return None
 
     if len(predictions) <= 2:

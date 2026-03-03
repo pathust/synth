@@ -5,14 +5,21 @@ from synth.validator.response_validation_v2 import CORRECT, validate_responses
 
 
 def test_generate_simulations():
-    result = generate_simulations(
+    current_time = get_current_time()
+    start_time = round_time_to_minutes(current_time, 120)
+    start_time_str = start_time.isoformat()
+    
+    sim_input = SimulationInput(asset="BTC", time_increment=300, time_length=86400, num_simulations=100)
+    result_dict = generate_simulations(
+        simulation_input=sim_input,
         asset="BTC",
-        start_time="2025-02-04T00:00:00+00:00",
+        start_time=start_time_str,
         time_increment=300,
         time_length=86400,
         num_simulations=100,
     )
 
+    result = result_dict.get("predictions")
     assert isinstance(result, tuple)
     assert len(result) == 102
     assert all(
@@ -34,13 +41,15 @@ def test_run():
     simulation_input.start_time = start_time.isoformat()
 
     print("start_time", simulation_input.start_time)
-    prediction = generate_simulations(
-        simulation_input.asset,
+    prediction_dict = generate_simulations(
+        simulation_input=simulation_input,
+        asset=simulation_input.asset,
         start_time=simulation_input.start_time,
         time_increment=simulation_input.time_increment,
         time_length=simulation_input.time_length,
         num_simulations=simulation_input.num_simulations,
     )
+    prediction = prediction_dict.get("predictions")
 
     format_validation = validate_responses(
         prediction,

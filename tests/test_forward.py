@@ -6,7 +6,6 @@ import bittensor as bt
 
 
 from sqlalchemy import Engine, insert, select
-from synth.miner.simulations import generate_simulations
 from synth.simulation_input import SimulationInput
 from synth.validator import response_validation_v2
 from synth.validator.forward import (
@@ -17,12 +16,14 @@ from synth.db.models import Miner, MinerReward
 from synth.validator.miner_data_handler import MinerDataHandler
 from synth.validator.price_data_provider import PriceDataProvider
 from synth.validator import prompt_config
-from tests.utils import prepare_random_predictions
+from tests.utils import prepare_random_predictions, generate_values
 
 
 def test_calculate_rewards_and_update_scores(db_engine: Engine):
-    start_time = "2024-08-25T23:58:00+00:00"
-    scored_time = datetime.fromisoformat("2024-08-28T00:00:00+00:00")
+    now = datetime.now(timezone.utc)
+    start_time_dt = (now - timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
+    start_time = start_time_dt.isoformat()
+    scored_time = start_time_dt + timedelta(days=1, minutes=4)
 
     handler, _, miner_uids = prepare_random_predictions(db_engine, start_time)
 
@@ -45,8 +46,10 @@ def test_calculate_rewards_and_update_scores(db_engine: Engine):
 
 
 def test_calculate_moving_average_and_update_rewards(db_engine: Engine):
-    start_time = "2024-09-25T23:58:00+00:00"
-    scored_time = datetime.fromisoformat("2024-09-28T00:00:00+00:00")
+    now = datetime.now(timezone.utc)
+    start_time_dt = (now - timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
+    start_time = start_time_dt.isoformat()
+    scored_time = start_time_dt + timedelta(days=1, minutes=4)
 
     handler, _, _ = prepare_random_predictions(db_engine, start_time)
 
@@ -81,7 +84,9 @@ def test_calculate_moving_average_and_update_rewards_new_miner(
             connection.execute(insert_stmt_validator)
 
     handler = MinerDataHandler(db_engine)
-    start_time_str = "2024-10-25T23:58:00+00:00"
+    now = datetime.now(timezone.utc)
+    start_time_dt = (now - timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
+    start_time_str = start_time_dt.isoformat()
     num_predictions = 6
     for i in range(num_predictions):
         miner_uids = [10, 20, 33, 40, 50, 60]
@@ -99,32 +104,32 @@ def test_calculate_moving_average_and_update_rewards_new_miner(
 
         simulation_data = {
             miner_uids[0]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "1.2",
             ),
             miner_uids[1]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "3",
             ),
             miner_uids[2]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "15",
             ),
             miner_uids[3]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 "time out or internal server error (process time is None)",
                 "2.1",
             ),
             miner_uids[4]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "1.5",
             ),
             miner_uids[5]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "5",
             ),
@@ -186,7 +191,9 @@ def test_calculate_moving_average_and_update_rewards_new_miner_registration(
             connection.execute(insert_stmt_validator)
 
     handler = MinerDataHandler(db_engine)
-    start_time_str = "2024-11-25T23:58:00+00:00"
+    now = datetime.now(timezone.utc)
+    start_time_dt = (now - timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
+    start_time_str = start_time_dt.isoformat()
     num_predictions = 6
     for i in range(num_predictions):
         print("I is ", i)
@@ -205,32 +212,32 @@ def test_calculate_moving_average_and_update_rewards_new_miner_registration(
 
         simulation_data = {
             miner_uids[0]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "1.2",
             ),
             miner_uids[1]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "3",
             ),
             miner_uids[2]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "15",
             ),
             miner_uids[3]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 "time out or internal server error (process time is None)",
                 "2.1",
             ),
             miner_uids[4]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "1.5",
             ),
             miner_uids[5]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "5",
             ),
@@ -307,7 +314,11 @@ def test_calculate_moving_average_and_update_rewards_only_invalid(
     db_engine: Engine,
 ):
     handler = MinerDataHandler(db_engine)
-    start_time_str = "2024-12-28T23:58:00+00:00"
+    now = datetime.now(timezone.utc)
+    start_time_dt = (now - timedelta(days=2)).replace(minute=0, second=0, microsecond=0)
+    start_time_str = start_time_dt.isoformat()
+    past_month = start_time_dt - timedelta(days=30)
+    past_month_str = past_month.isoformat()
 
     handler.update_miner_rewards(
         [
@@ -315,25 +326,25 @@ def test_calculate_moving_average_and_update_rewards_only_invalid(
                 "miner_uid": 0,
                 "smoothed_score": float("nan"),
                 "reward_weight": float("nan"),
-                "updated_at": "2024-11-25T21:00:00+00:00",
+                "updated_at": past_month_str,
             },
             {
                 "miner_uid": 1,
                 "smoothed_score": float("nan"),
                 "reward_weight": float("nan"),
-                "updated_at": "2024-11-25T21:00:00+00:00",
+                "updated_at": past_month_str,
             },
             {
                 "miner_uid": 2,
                 "smoothed_score": float("nan"),
                 "reward_weight": float("nan"),
-                "updated_at": "2024-11-25T21:00:00+00:00",
+                "updated_at": past_month_str,
             },
             {
                 "miner_uid": 3,
                 "smoothed_score": float("nan"),
                 "reward_weight": float("nan"),
-                "updated_at": "2024-11-25T21:00:00+00:00",
+                "updated_at": past_month_str,
             },
         ]
     )
@@ -365,7 +376,7 @@ def test_calculate_moving_average_and_update_rewards_only_invalid(
                 "3",
             ),
             miner_uids[2]: (
-                generate_simulations(start_time=start_time_str),
+                generate_values(datetime.fromisoformat(start_time_str)),
                 response_validation_v2.CORRECT,
                 "15",
             ),
