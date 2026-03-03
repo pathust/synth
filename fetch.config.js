@@ -2,9 +2,9 @@ module.exports = {
     apps: [
         {
             name: "fetch-daemon",
-            interpreter: "/Users/taiphan/miniconda3/envs/synth/bin/python",
+            interpreter: "/home/user/synth/.venv/bin/python",
             script: "./synth/miner/fetch_daemon.py",
-            cwd: "/Users/taiphan/Documents/synth",
+            cwd: "/home/user/synth",
             env: {
                 PYTHONPATH: ".",
             },

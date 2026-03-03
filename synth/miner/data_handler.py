@@ -285,7 +285,8 @@ class DataHandler:
     ):
         """
         Fetch historical price data backwards from `end_time_utc` in batches of `batch_minutes`.
-        Saves each batch to MySQL immediately.
+        Buffers all fetched data, sorts by timestamp ascending, then bulk-inserts once.
+        This ensures DB records are in chronological order for efficient querying.
         """
         target_start_time = end_time_utc - datetime.timedelta(days=days_back)
         
@@ -301,8 +302,10 @@ class DataHandler:
         
         print(f"[DataHandler] Backfilling {asset}/{time_frame} backwards for {days_back} days (batches of {batch_minutes}m)")
         
-        total_fetched = 0
+        buffer: dict[str, float] = {}
         batch_idx = 0
+        fetch_start = time.time()
+
         while current_end_time > target_start_time:
             batch_idx += 1
             current_start_time = current_end_time - datetime.timedelta(seconds=batch_seconds)
@@ -316,7 +319,6 @@ class DataHandler:
             transformed_data = {}
             executor = ThreadPoolExecutor(max_workers=2)
             try:
-                # Submit both tasks concurrently
                 future_cm = (
                     executor.submit(
                         self.fetch_cm_data, asset, current_start_time,
@@ -341,7 +343,6 @@ class DataHandler:
                         source = futures_dict[future]
                         if result and len(result) > 0:
                             transformed_data = result
-                            # Cancel the other future
                             if future == future_cm:
                                 future_synth.cancel()
                             elif future_cm is not None:
@@ -356,7 +357,6 @@ class DataHandler:
                 executor.shutdown(wait=False)
 
             if transformed_data:
-                # Filter data exactly within the batch to avoid bleed
                 start_ts = int(current_start_time.timestamp())
                 end_ts = int(current_end_time.timestamp())
                 filtered_data = {
@@ -365,24 +365,37 @@ class DataHandler:
                 }
                 
                 if filtered_data:
-                    self.save_price_data(asset, time_frame, {tf_name: filtered_data})
-                    total_fetched += len(filtered_data)
+                    buffer.update(filtered_data)
                     elapsed = time.time() - st_time
                     print(
-                        f"[DataHandler] Batch backward {batch_idx} "
+                        f"[DataHandler] Batch {batch_idx} "
                         f"({current_start_time.strftime('%m-%d %H:%M')} -> {current_end_time.strftime('%m-%d %H:%M')}): "
-                        f"{len(filtered_data)} points saved, {elapsed:.1f}s elapsed"
+                        f"{len(filtered_data)} points fetched, buffer={len(buffer)}, {elapsed:.1f}s"
                     )
                 else:
-                    print(f"[DataHandler] Batch backward {batch_idx} returned data but all filtered out.")
+                    print(f"[DataHandler] Batch {batch_idx} returned data but all filtered out.")
             else:
-                 print(f"[DataHandler] Batch backward {batch_idx} returned empty data.")
+                 print(f"[DataHandler] Batch {batch_idx} returned empty data.")
             
-            # Step backwards
             current_end_time = current_start_time
 
-        print(f"[DataHandler] Backfill backward complete for {asset}/{time_frame}: {total_fetched} total new points")
-        return total_fetched
+        if not buffer:
+            print(f"[DataHandler] Backfill complete for {asset}/{time_frame}: no data fetched")
+            return 0
+
+        sorted_buffer = dict(sorted(buffer.items(), key=lambda x: int(x[0])))
+        self.save_price_data(asset, time_frame, {tf_name: sorted_buffer})
+
+        first_ts = datetime.datetime.fromtimestamp(int(next(iter(sorted_buffer))), datetime.timezone.utc)
+        last_ts = datetime.datetime.fromtimestamp(int(list(sorted_buffer)[-1]), datetime.timezone.utc)
+        total_elapsed = time.time() - fetch_start
+        print(
+            f"[DataHandler] Backfill complete for {asset}/{time_frame}: "
+            f"{len(sorted_buffer)} points, "
+            f"{first_ts.strftime('%Y-%m-%d %H:%M')} -> {last_ts.strftime('%Y-%m-%d %H:%M')} UTC, "
+            f"{total_elapsed:.1f}s total"
+        )
+        return len(sorted_buffer)
 
     @staticmethod
     def _transform_data(
