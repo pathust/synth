@@ -96,19 +96,11 @@ class EgarchStrategy(BaseStrategy):
         nu = max(float(res.params.get("nu", 8.0)), 3.0)
         mu = float(res.params.get("mu", res.params.get("Const", 0.0)))
 
-        # ── 4. Simulate using arch forecast simulations ──
+        # ── 4. Simulate paths manually (arch's model.simulate has different API) ──
         steps = time_length // time_increment
         S0 = float(hist_prices.iloc[-1])
 
-        # Use arch's built-in simulation from the fitted model
-        sim = res.model.simulate(
-            res.params,
-            nobs=steps,
-            initial_value=scaled_returns.iloc[-1],
-            initial_variance=res.conditional_volatility.iloc[-1] ** 2,
-        )
-
-        # Generate multiple paths manually using Student-t innovation
+        # Generate multiple paths using Student-t innovation and EGARCH recursion
         scale_std = np.sqrt(nu / (nu - 2.0)) if nu > 2 else 1.0
         z = student_t.rvs(df=nu, size=(steps, n_sims)) / scale_std
 

@@ -48,7 +48,8 @@ def iso_to_timestamp(iso_string: str) -> int:
 def fetch_price_data(asset: str, time_increment: int, only_load: bool = False):
     """
     Load historical price data from MySQL. If not available, fetch from API.
-    sn50 L24-41
+    Khi time_increment=300 (5m) và only_load=True: nếu không có 5m trong DB thì
+    load 1m và aggregate sang 5m (giống backtest_data_loader) để tránh fetch API chậm.
     
     Args:
         asset: Asset name (e.g., "BTC", "ETH")
@@ -60,6 +61,20 @@ def fetch_price_data(asset: str, time_increment: int, only_load: bool = False):
     """
     time_frame = "1m" if time_increment == 60 else ("5m" if time_increment == 300 else str(time_increment))
     hist_price_data = data_handler.load_price_data(asset, time_frame)
+
+    # Khi cần 5m và only_load: nếu không có 5m thì aggregate từ 1m (tránh fetch API)
+    if time_increment == 300 and only_load:
+        has_5m = hist_price_data and time_frame in hist_price_data and hist_price_data[time_frame]
+        if not has_5m:
+            loaded_1m = data_handler.load_price_data(asset, "1m")
+            if loaded_1m and "1m" in loaded_1m and loaded_1m["1m"]:
+                from synth.miner.backtest_data_loader import aggregate_1m_to_5m
+                prices_5m = aggregate_1m_to_5m(loaded_1m["1m"])
+                if prices_5m:
+                    hist_price_data = {"5m": prices_5m}
+                    total = len(prices_5m)
+                    print(f"[INFO] Loaded 1m, aggregated to 5m: {asset}, {total} points (only_load=True)")
+                    return hist_price_data
 
     current_time = datetime.datetime.now(datetime.timezone.utc).replace(second=0, microsecond=0)
     target_start = current_time - datetime.timedelta(days=45)
@@ -147,9 +162,9 @@ def simulate_crypto_price_paths(
     Returns:
         np.ndarray: Simulated price paths, shape (n_sims, steps+1)
     """
-    time_frame = "5m" if time_increment == 300 else str(time_increment)
+    time_frame = "1m" if time_increment == 60 else ("5m" if time_increment == 300 else str(time_increment))
 
-    only_load = True # Force only load for backtesting
+    only_load = True  # Force only load for backtesting
     hist_price_data = fetch_price_data(asset, time_increment, only_load=only_load)
 
     if not hist_price_data or time_frame not in hist_price_data:
