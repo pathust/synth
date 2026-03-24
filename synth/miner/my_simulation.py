@@ -23,6 +23,7 @@ import traceback
 from typing import Any, Optional, Callable
 
 from synth.miner.data_handler import DataHandler
+from synth.miner.price_aggregation import aggregate_1m_to_5m
 from synth.miner.constants import ASSETS_PERIODIC_FETCH_PRICE_DATA
 
 # Global DataHandler instance (shared across simulation calls)
@@ -68,7 +69,6 @@ def fetch_price_data(asset: str, time_increment: int, only_load: bool = False):
         if not has_5m:
             loaded_1m = data_handler.load_price_data(asset, "1m")
             if loaded_1m and "1m" in loaded_1m and loaded_1m["1m"]:
-                from synth.miner.backtest_data_loader import aggregate_1m_to_5m
                 prices_5m = aggregate_1m_to_5m(loaded_1m["1m"])
                 if prices_5m:
                     hist_price_data = {"5m": prices_5m}

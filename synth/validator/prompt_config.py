@@ -81,3 +81,18 @@ HIGH_FREQUENCY = PromptConfig(
     smoothed_score_coefficient=0.5,
     data_retention_days=4,
 )
+
+
+def get_prompt_labels_for_asset(asset: str) -> list[str]:
+    """
+    Trả về danh sách prompt (high/low) mà asset được hỗ trợ.
+    - Cả low và high → ["low", "high"] (tính CRPS cả hai).
+    - Chỉ low hoặc chỉ high → ["low"] hoặc ["high"] (chỉ tính một).
+    """
+    out: list[str] = []
+    if asset in LOW_FREQUENCY.asset_list:
+        out.append("low")
+    if asset in HIGH_FREQUENCY.asset_list:
+        out.append("high")
+    return out
+

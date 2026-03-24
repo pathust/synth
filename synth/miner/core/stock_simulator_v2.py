@@ -53,7 +53,7 @@ def get_future_weekly_factors(start_time, steps, time_increment, profile_map):
     
     # Hệ số mặc định cho giờ "Chết" (những giờ không có trong lịch sử)
     # Ví dụ: Thứ 7 với chứng khoán Mỹ. Ta set cực nhỏ để dải dự báo co lại tối đa.
-    DEAD_ZONE_MULTIPLIER = 0.05 
+    DEAD_ZONE_MULTIPLIER = 0.0 
     
     for _ in range(steps):
         current_t += pd.Timedelta(seconds=time_increment)
