@@ -26,10 +26,6 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from synth.miner.backtest.common import (
-    calculate_crps_with_formula,
-    parse_datetime_input,
-)
 from synth.miner.data_handler import DataHandler
 from synth.db.models import ValidatorRequest
 from synth.validator.prompt_config import (
@@ -39,6 +35,90 @@ from synth.validator.prompt_config import (
 )
 from synth.miner.my_simulation import simulate_crypto_price_paths
 from synth.miner.price_aggregation import aggregate_1m_to_5m
+
+# Reuse interval/changes logic from validator
+from synth.validator.crps_calculation import (
+    get_interval_steps,
+    calculate_price_changes_over_intervals,
+    label_observed_blocks,
+)
+
+
+def crps_point_formula(x: float, y: np.ndarray) -> float:
+    """
+    CRPS theo công thức đã cho cho một bước thời gian:
+      CRPS = (1/N) * Σ_n |y_n - x| - (1/(2*N²)) * Σ_n Σ_m |y_n - y_m|
+    x: giá trị quan sát (real), y: array 1D N mẫu dự báo.
+    """
+    y = np.asarray(y, dtype=float).ravel()
+    N = y.size
+    if N == 0:
+        return np.nan
+    term1 = np.mean(np.abs(y - x))
+    term2 = np.sum(np.abs(y[:, None] - y[None, :])) / (2.0 * (N ** 2))
+    return float(term1 - term2)
+
+
+def calculate_crps_with_formula(
+    simulation_runs: np.ndarray,
+    real_price_path: np.ndarray,
+    time_increment: int,
+    scoring_intervals: dict[str, int],
+) -> float:
+    """
+    Tính tổng CRPS giống validator (cùng intervals, price changes) nhưng dùng công thức
+    CRPS = (1/N)*Σ|y_n - x| - (1/(2*N²))*ΣΣ|y_n - y_m| thay cho crps_ensemble.
+    """
+    sum_all_scores = 0.0
+    real_path = np.asarray(real_price_path, dtype=float).ravel()
+    if np.any(simulation_runs == 0):
+        return -1.0
+
+    for interval_name, interval_seconds in scoring_intervals.items():
+        interval_steps = get_interval_steps(interval_seconds, time_increment)
+        absolute_price = interval_name.endswith("_abs")
+        is_gap = interval_name.endswith("_gap")
+
+        if absolute_price:
+            while (
+                real_path[::interval_steps].shape[0] == 1
+                and interval_steps > 1
+            ):
+                interval_steps -= 1
+
+        simulated_changes = calculate_price_changes_over_intervals(
+            simulation_runs,
+            interval_steps,
+            absolute_price,
+            is_gap,
+        )
+        real_changes = calculate_price_changes_over_intervals(
+            real_path.reshape(1, -1),
+            interval_steps,
+            absolute_price,
+            is_gap,
+        )
+        data_blocks = label_observed_blocks(real_changes[0])
+        if len(data_blocks) == 0:
+            continue
+
+        for block in np.unique(data_blocks):
+            if block == -1:
+                continue
+            mask = data_blocks == block
+            sim_block = simulated_changes[:, mask]
+            real_block = real_changes[0, mask]
+            num_t = sim_block.shape[1]
+            for t in range(num_t):
+                x = float(real_block[t])
+                y = sim_block[:, t]
+                crps_t = crps_point_formula(x, y)
+                if np.isfinite(crps_t):
+                    if absolute_price:
+                        crps_t = crps_t / real_path[-1] * 10_000
+                    sum_all_scores += crps_t
+
+    return float(sum_all_scores)
 
 
 def get_prompt_config(prompt_label: str):
@@ -143,8 +223,25 @@ def _time_frame_for_increment(time_increment: int) -> str:
 
 
 def _parse_datetime_input(value: str) -> tuple[datetime, bool]:
-    """Backward-compatible wrapper around shared parser."""
-    return parse_datetime_input(value)
+    """
+    Parse flexible datetime input.
+    Returns (datetime_utc, has_time_component).
+    Supported:
+    - YYYY-MM-DD
+    - YYYY-MM-DDTHH:MM[:SS][+TZ]
+    - YYYY-MM-DD HH:MM[:SS]
+    """
+    s = (value or "").strip()
+    if not s:
+        raise ValueError("empty datetime input")
+    has_time = ("T" in s) or (" " in s)
+    if has_time:
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    else:
+        d = datetime.fromisoformat(f"{s}T00:00:00+00:00")
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    return d, has_time
 
 
 def fetch_real_prices_from_db(
