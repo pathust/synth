@@ -1,9 +1,12 @@
 """
 entry.py — New unified entry point for simulation generation.
 
-Drop-in replacement for simulations_new_v3.py.generate_simulations().
-Reads strategy configs from config/asset_strategy_config.py instead of
-hardcoded dicts.
+Implements docs/ARCHITECTURE.md live path:
+Validator → horizon (HFT/LFT via time_length) → Regime Detector → Strategy
+Selector (strategies.yaml) → Monte Carlo → validate/format.
+
+Routing uses synth/miner/config/strategies.yaml (regime-aware keys under each
+asset and high|low). Fallback: asset_strategy_config.get_strategy_list.
 
 Usage (in neurons/miner.py):
     from synth.miner.entry import generate_simulations
@@ -24,6 +27,9 @@ from synth.miner.ensemble.trimmer import OutlierTrimmer
 from synth.miner.my_simulation import simulate_crypto_price_paths
 from synth.utils.helpers import convert_prices_to_time_format
 from synth.validator.response_validation_v2 import validate_responses
+
+from synth.miner.data.dataloader import UnifiedDataLoader
+from synth.miner.regimes.detector import detect_regime
 
 
 # ── Simulator function registry (same as simulations_new_v3.py) ─────
@@ -142,13 +148,41 @@ def generate_simulations(
     if start_time == "":
         raise ValueError("Start time must be provided.")
 
-    # Load config-driven strategy list
+    # ARCHITECTURE.md: horizon (HFT/LFT) is implicit in time_length/time_increment;
+    # Regime Detector + Strategy Selector (strategies.yaml) pick models per regime.
+    market_regime: Optional[str] = None
+    regime_asset_type: Optional[str] = None
+    regime_confidence: Optional[float] = None
+    try:
+        loader = UnifiedDataLoader()
+        freq_label = "high" if time_length == 3600 else "low"
+        hist = loader.get_historical_dict(
+            asset, start_time, window_days=30, frequency=freq_label
+        ) or {}
+        if hist:
+            rr = detect_regime(
+                asset,
+                start_time,
+                time_increment,
+                time_length,
+                hist,
+            )
+            market_regime = rr.regime
+            regime_asset_type = rr.asset_type
+            regime_confidence = rr.confidence
+    except Exception:
+        market_regime = None
+
     strategy_store = get_strategy_store()
-    strategy_configs = strategy_store.get_strategy_list(asset, time_length)
+    strategy_configs = strategy_store.get_strategy_list(
+        asset, time_length, market_regime=market_regime
+    )
     ensemble_names = [sc.strategy_name for sc in strategy_configs[:ENSEMBLE_TOP_N]]
 
     print(
         f"[INFO] entry: asset={asset}, time_length={time_length}, "
+        f"regime_type={regime_asset_type}, market_regime={market_regime}, "
+        f"regime_conf={regime_confidence}, "
         f"ensemble={ensemble_names}, n={num_simulations}, seed={seed}"
     )
 
@@ -181,11 +215,17 @@ def generate_simulations(
         if fb not in try_names:
             try_names.append(fb)
 
+    params_by_name: dict[str, dict] = {}
+    for sc in strategy_configs:
+        if sc.strategy_name not in params_by_name:
+            params_by_name[sc.strategy_name] = sc.params or {}
+
     for sim_name in try_names:
         fn = _get_simulate_fn(sim_name)
         if fn is None:
             continue
         try:
+            extra = dict(params_by_name.get(sim_name, {}))
             simulations = simulate_crypto_price_paths(
                 current_price=None,
                 asset=asset,
@@ -197,6 +237,7 @@ def generate_simulations(
                 max_data_points=None,
                 seed=seed,
                 miner_start_time=start_time,
+                **extra,
             )
             if simulations is None:
                 continue
