@@ -24,7 +24,7 @@ import bittensor as bt
 
 # import base miner class which takes care of most of the boilerplate
 from synth.base.miner import BaseMinerNeuron
-from synth.miner.simulations_new_v3 import generate_simulations
+from synth.miner.entry_new import generate_simulations
 from synth.protocol import Simulation
 
 

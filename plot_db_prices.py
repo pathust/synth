@@ -124,10 +124,10 @@ def main(data_type: str, asset: str, start: str, end: str, out: str = None):
 
 if __name__ == "__main__":
     # ĐIỀN THAM SỐ VÀO ĐÂY VÀ CHẠY FILE
-    DATA_TYPE = "high"             # "high" (dùng time_frame 1m) hoặc "low" (dùng time_frame 5m)
-    ASSET = "ETH"                  # Đồng/Tài sản (VD: BTC, ETH, SPYX)
-    START_DATE = "2026-03-10"      # Thời gian Bắt đầu (YYYY-MM-DD hoặc YYYY-MM-DD HH:MM:SS)
-    END_DATE = "2026-03-24"        # Thời gian Kết thúc (YYYY-MM-DD hoặc YYYY-MM-DD HH:MM:SS)
+    DATA_TYPE = "low"             # "high" (dùng time_frame 1m) hoặc "low" (dùng time_frame 5m)
+    ASSET = "AAPLX"                  # Đồng/Tài sản (VD: BTC, ETH, SPYX)
+    START_DATE = "2026-02-15"      # Thời gian Bắt đầu (YYYY-MM-DD hoặc YYYY-MM-DD HH:MM:SS)
+    END_DATE = "2026-03-26"        # Thời gian Kết thúc (YYYY-MM-DD hoặc YYYY-MM-DD HH:MM:SS)
     OUT_FILE = None                # Tên file ảnh ra. Nếu để None, sẽ tự đặt rên tên theo asset và thời gian
     
     main(DATA_TYPE, ASSET, START_DATE, END_DATE, OUT_FILE)

@@ -125,33 +125,39 @@ class EgarchStrategy(BaseStrategy):
         # Simplified EGARCH(1,1,1) simulation
         alpha1 = alpha_params[0] if alpha_params else 0.0
         gamma1 = gamma_params[0] if gamma_params else 0.0
-        beta1 = beta_params[0] if beta_params else 0.9
+        # Safety: cap persistence to keep process mean-reverting after shocks.
+        beta1 = min(beta_params[0] if beta_params else 0.9, 0.98)
 
         ln_sigma2_prev = np.full(n_sims, np.log(last_vol**2))
         z_prev = np.zeros(n_sims)
 
         returns_bps = np.zeros((steps, n_sims))
+        expected_abs_z = np.sqrt(2 / np.pi)  # E[|z|] for standard normal
 
         for t in range(steps):
             # EGARCH: ln(σ²_t) = ω + α(|z_{t-1}| - E|z|) + γ*z_{t-1} + β*ln(σ²_{t-1})
-            expected_abs_z = np.sqrt(2 / np.pi)  # E[|z|] for standard normal
             ln_sigma2 = (
                 omega
                 + alpha1 * (np.abs(z_prev) - expected_abs_z)
                 + gamma1 * z_prev
                 + beta1 * ln_sigma2_prev
             )
-            sigma_t = np.sqrt(np.exp(np.clip(ln_sigma2, -20, 20)))
+            # Safety: tighter clipping in log-variance space to avoid variance explosion.
+            ln_sigma2 = np.clip(ln_sigma2, -15, 12)
+            sigma_t = np.sqrt(np.exp(ln_sigma2))
 
-            eps_t = sigma_t * z[t, :]
+            # Safety: trim extreme Student-t shocks before mapping to eps_t.
+            z_t = np.clip(z[t, :], -5.0, 5.0)
+            eps_t = sigma_t * z_t
             returns_bps[t, :] = mu + eps_t
 
-            z_prev = z[t, :]
+            z_prev = z_t
             ln_sigma2_prev = ln_sigma2
 
         # ── 5. Build Prices ──
         log_ret = returns_bps / params["scale"]
-        cum_ret = np.cumsum(log_ret, axis=0)
+        # Final guard before exp() to prevent numeric overflow on path generation.
+        cum_ret = np.clip(np.cumsum(log_ret, axis=0), -3.0, 3.0)
         prices = np.zeros((n_sims, steps + 1))
         prices[:, 0] = S0
         prices[:, 1:] = S0 * np.exp(cum_ret).T

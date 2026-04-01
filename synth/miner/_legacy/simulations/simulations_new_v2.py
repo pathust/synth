@@ -94,44 +94,24 @@ def _build_simulator_functions() -> dict[str, Callable]:
 # ---------------------------------------------------------------------------
 STRATEGY_LIST_FOR_ASSET: dict[tuple[str, str], list[tuple[str, float]]] = {
     # HIGH: garch_v2 (0.5) giữ vai trò chủ đạo, các model khác tạo tail diversity
-    # ("BTC", "high"):   [("garch_v2", 0.5), ("garch_v4", 0.3), ("egarch", 0.2)],
-    ("BTC", "high"): [("garch_v2_2", 1.0)],
-    # ("ETH", "high"):   [("garch_v2", 0.5), ("garch_v4", 0.3), ("garch_v4_1", 0.2)],
-    ("ETH", "high"): [("garch_v2_2", 1.0)],
-    ("XAU", "high"): [("garch_v4_2", 1.0)],
-    # ("SOL", "high"):   [("garch_v2", 0.5), ("garch_v4", 0.3), ("egarch", 0.2)],
-    ("SOL", "high"): [("garch_v4", 1.0)],
+    ("BTC", "high"):   [("garch_v2", 0.5), ("garch_v4", 0.3), ("egarch", 0.2)],
+    ("ETH", "high"):   [("garch_v2", 0.5), ("garch_v4", 0.3), ("garch_v4_1", 0.2)],
+    ("XAU", "high"):   [("garch_v2", 0.4), ("egarch", 0.4), ("garch_v4_2", 0.2)],
+    ("SOL", "high"):   [("garch_v2", 0.5), ("garch_v4", 0.3), ("egarch", 0.2)],
 
-
-    # LOW: Cập nhật allocation tối ưu dựa trên backtest tổng hợp
-    # ("BTC", "low"):    [("har_rv", 0.4), ("weekly_stock", 0.3), ("regime_switching", 0.3)],
-    ("BTC", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("gjr_garch", 0.3)],
-    # ("ETH", "low"):    [("regime_switching", 0.4), ("gjr_garch", 0.3), ("egarch", 0.3)],
-    ("ETH", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("regime_switching", 0.3)],
-    # ("XAU", "low"):    [("ensemble_garch_v2_v4", 0.4), ("garch_v4", 0.3), ("garch_v2_1", 0.3)],
-    ("XAU", "low"): [("jump_diffusion", 0.4), ("garch_v4_1", 0.3), ("weekly_regime_switching", 0.3)],
-    # ("SOL", "low"):    [("har_rv", 0.4), ("weekly_stock", 0.3), ("garch_v4", 0.3)],
-    # ("SOL", "low"): [("garch_v2_2", 0.4), ("garch_v4", 0.3), ("regime_switching", 0.3)],
-    ("SOL", "low"): [
-        ("garch_v4", 0.4),            # 40%: Động cơ chính để bám trend rơi/bơm mạnh
-        ("arima_equity", 0.3),        # 30%: Bắt nhịp Sideway và tạo nền móng tuyến tính
-        ("mean_reversion", 0.3)       # 30%: Lực hút kéo dải phân phối lại khi SOL giật nảy 
-    ],
-
+    # LOW: Đa dạng hóa mạnh hơn, phân bổ rủi ro đều hơn
+    ("BTC", "low"):    [("egarch", 0.4), ("garch_v4_2", 0.3), ("garch_v2", 0.3)],
+    ("ETH", "low"):    [("seasonal_stock", 0.4), ("egarch", 0.3), ("garch_v4_2", 0.3)],
+    ("XAU", "low"):    [("egarch", 0.4), ("garch_v4_1", 0.3), ("garch_v4", 0.3)],
+    ("SOL", "low"):    [("seasonal_stock", 0.4), ("garch_v4_2", 0.3), ("egarch", 0.3)],
 
     # Stocks (low only)
-    # ("NVDAX", "low"):  [("weekly_stock", 0.4), ("garch_v2_1", 0.3), ("production_baseline", 0.3)],
-    # ("TSLAX", "low"):  [("production_baseline", 0.4), ("weekly_stock", 0.3), ("ensemble_garch_v2_v4", 0.3)],
-    # ("AAPLX", "low"): [("arima_equity", 0.4), ("weekly_regime_switching", 0.4), ("weekly_stock", 0.2)],
-    # ("GOOGLX", "low"): [("production_baseline", 0.4), ("weekly_stock", 0.3), ("gjr_garch", 0.3)],
-    # ("SPYX", "low"):   [("weekly_regime_switching", 0.4), ("weekly_garch_v4", 0.3), ("arima_equity", 0.3)],
-    ("NVDAX", "low"): [("arima_equity", 0.4), ("garch_v4_1", 0.3), ("markov_garch_jump", 0.3)],
-    ("TSLAX", "low"): [("weekly_garch_v4", 0.4), ("garch_v4", 0.3), ("regime_switching", 0.3)],
-    ("AAPLX", "low"): [("markov_garch_jump", 0.4), ("regime_switching", 0.3), ("garch_v4_1", 0.3)],
-    ("GOOGLX", "low"): [("gjr_garch", 0.4), ("regime_switching", 0.3), ("garch_v4_1", 0.3)],
-    ("SPYX", "low"): [("weekly_regime_switching", 0.4), ("garch_v4", 0.3), ("arima_equity", 0.3)],
+    ("NVDAX", "low"):  [("garch_v4_1", 0.4), ("garch_v4", 0.4), ("garch_v2", 0.2)],
+    ("TSLAX", "low"):  [("garch_v4_1", 0.4), ("garch_v4", 0.4), ("garch_v2", 0.2)],
+    ("AAPLX", "low"):  [("garch_v4", 0.4), ("garch_v2_1", 0.4), ("garch_v2", 0.2)],
+    ("GOOGLX", "low"): [("garch_v4", 0.4), ("garch_v4_1", 0.4), ("garch_v2", 0.2)],
+    ("SPYX", "low"):   [("garch_v4", 0.4), ("garch_v4_2", 0.4), ("garch_v2", 0.2)],
 }
-
 
 DEFAULT_FALLBACK_CHAIN = [
     "garch_v2",

@@ -21,7 +21,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-from synth.miner.simulations_new_v3 import generate_simulations
+from synth.miner.entry_new import generate_simulations
 from synth.simulation_input import SimulationInput
 from synth.utils.helpers import get_current_time, round_time_to_minutes
 from synth.validator.response_validation_v2 import validate_responses, CORRECT
@@ -275,16 +275,16 @@ def benchmark_test(
 
 if __name__ == "__main__":
     asset = "SOL"
-    time_increment = 300
-    time_length = 86400
+    time_increment = 60
+    time_length = 3600
     num_simulations = 1000
 
     start_time = datetime(2026, 3, 12, 5, 12, 0)
-    test_prompt_config = prompt_config.LOW_FREQUENCY
+    test_prompt_config = prompt_config.HIGH_FREQUENCY
 
     # Single test
     # simple_test(asset, start_time, test_prompt_config)
 
     # Benchmark test
     # Pass [asset] as a list to allow benchmark for only that asset
-    scores = benchmark_test(30, test_prompt_config, "simulations_new_v3", assets=[asset])
+    scores = benchmark_test(30, test_prompt_config, "entry_new", assets=[asset])

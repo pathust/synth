@@ -906,10 +906,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(
-        date="2026-03-22",
-        assets=["XAU"],
+        date="2026-03-23",
+        assets=["BTC"],
         num_sims=1000,
-        config_type="low",
+        config_type="high",
         seed=42,
         fetch_if_missing=False,
         verbose=False,

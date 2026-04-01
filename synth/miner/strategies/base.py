@@ -6,9 +6,42 @@ The registry uses the class-level attributes to filter strategies
 by asset and frequency.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Optional
 import numpy as np
+
+
+# ─────────────────────────────────────────────────────────────────────
+# StrategyConfig: type-safe configuration for deploying a strategy
+# ─────────────────────────────────────────────────────────────────────
+
+@dataclass
+class StrategyConfig:
+    """
+    Configuration for deploying a strategy to a specific asset/frequency.
+
+    Used in config/asset_strategy_config.py to define production mappings.
+    Also serves as the output of deploy/exporter.py.
+
+    Attributes:
+        strategy_name: Registry name of the strategy (e.g., "garch_v4").
+        weight: Ensemble weight in [0, 1]. Weights are normalized at runtime.
+        params: Override parameters passed as **kwargs to strategy.simulate().
+    """
+    strategy_name: str
+    weight: float = 1.0
+    params: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        if not 0.0 <= self.weight <= 1.0:
+            raise ValueError(f"Weight must be in [0, 1], got {self.weight}")
+
+    def to_tuple(self) -> tuple[str, float]:
+        """Legacy compat: convert to (name, weight) tuple."""
+        return (self.strategy_name, self.weight)
 
 
 class BaseStrategy(ABC):
@@ -16,6 +49,7 @@ class BaseStrategy(ABC):
 
     # --- Must be set by subclasses ---
     name: str = ""                          # e.g. "garch_v2"
+    version: str = "1.0"                    # Strategy version for tracking
     description: str = ""                   # Human-readable description
     supported_assets: list[str] = []        # e.g. ["BTC","ETH"]; empty = all
     supported_frequencies: list[str] = []   # ["high","low"]; empty = all
