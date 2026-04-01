@@ -1,0 +1,281 @@
+{
+  "timestamp": "2026-04-01T10:47:03.831851",
+  "config": {
+    "BTC_high": [
+      {
+        "name": "garch_v4",
+        "weight": 0.34,
+        "params": {}
+      },
+      {
+        "name": "garch_v2",
+        "weight": 0.33,
+        "params": {}
+      },
+      {
+        "name": "production_baseline",
+        "weight": 0.33,
+        "params": {}
+      }
+    ],
+    "BTC_low": [
+      {
+        "name": "regime_switching",
+        "weight": 0.34,
+        "params": {}
+      },
+      {
+        "name": "ensemble_garch_v2_v4",
+        "weight": 0.33,
+        "params": {}
+      },
+      {
+        "name": "dynamic_router",
+        "weight": 0.33,
+        "params": {}
+      }
+    ]
+  },
+  "top_results_summary": [
+    {
+      "strategy": "dynamic_router",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1028.3434337924198,
+      "median_score": 813.3788869534479,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "dynamic_router_v2",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1099.2779953946883,
+      "median_score": 909.793709752419,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "egarch",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1082.2850265375844,
+      "median_score": 878.6597442439212,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "ensemble_garch_v2_v4",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1029.1356336410454,
+      "median_score": 835.9025685651422,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v1",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 5662.753470223808,
+      "median_score": 1884.9365581455518,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v2",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1024.0110896577303,
+      "median_score": 824.4687311278353,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v2_2",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1045.092141276399,
+      "median_score": 859.9221627097788,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v4",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1010.75714299564,
+      "median_score": 833.1291976779628,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "gjr_garch",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1060.5248946514096,
+      "median_score": 852.055660246691,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "har_rv",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 2810.980926696029,
+      "median_score": 2667.5435557969404,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "jump_diffusion",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1058.5967404150385,
+      "median_score": 912.1370254073994,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "markov_garch_jump",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 3757.7648251337237,
+      "median_score": 3375.0224849345745,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "mean_reversion",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1134.8226534385185,
+      "median_score": 976.5557954037604,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "production_baseline",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1024.0110896577303,
+      "median_score": 824.4687311278353,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "regime_switching",
+      "asset": "BTC",
+      "frequency": "high",
+      "avg_score": 1057.472976996085,
+      "median_score": 831.4564468148772,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "dynamic_router",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3839.5739650811024,
+      "median_score": 3428.1060440245983,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "dynamic_router_v2",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3937.17348233673,
+      "median_score": 3509.6030415906343,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "egarch",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3952.040799510182,
+      "median_score": 3593.844365969014,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "ensemble_garch_v2_v4",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3821.537469568091,
+      "median_score": 3558.3981137584874,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v1",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 4046.6910202242457,
+      "median_score": 3691.3314856721954,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v2",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3847.8726720926843,
+      "median_score": 3492.958155728058,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v2_2",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3845.6948247462824,
+      "median_score": 3451.2625095461617,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "garch_v4",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3839.6781433995657,
+      "median_score": 3509.6030415906343,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "gjr_garch",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3841.302671368712,
+      "median_score": 3614.153546265262,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "har_rv",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3926.2549729081807,
+      "median_score": 3488.2435092813603,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "jump_diffusion",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3983.5759736307227,
+      "median_score": 3621.998941671464,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "markov_garch_jump",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 5999.2475111613785,
+      "median_score": 5792.95789197992,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "mean_reversion",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 4057.0429540375044,
+      "median_score": 3782.6000640658303,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "production_baseline",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3847.8726720926843,
+      "median_score": 3492.958155728058,
+      "successful_runs": 3
+    },
+    {
+      "strategy": "regime_switching",
+      "asset": "BTC",
+      "frequency": "low",
+      "avg_score": 3801.6141615874462,
+      "median_score": 3432.8863740807624,
+      "successful_runs": 3
+    }
+  ]
+}
