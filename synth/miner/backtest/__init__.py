@@ -18,7 +18,14 @@ backtest/ — Modular backtesting framework.
 # Some environments run lightweight scripts without numpy installed.
 # Tools should import from submodules directly when needed.
 
-__all__ = ["BacktestEngine", "ExperimentConfig"]
+__all__ = [
+    "BacktestEngine",
+    "ExperimentConfig",
+    "PredictionBacktestEngine",
+    "RegimeEngineConfig",
+    "MarketTaxonomyRouter",
+    "CaseKey",
+]
 
 
 def __getattr__(name: str):
@@ -28,6 +35,26 @@ def __getattr__(name: str):
         mapping = {
             "BacktestEngine": BacktestEngine,
             "ExperimentConfig": ExperimentConfig,
+        }
+        return mapping[name]
+    if name in {
+        "PredictionBacktestEngine",
+        "RegimeEngineConfig",
+        "MarketTaxonomyRouter",
+        "CaseKey",
+    }:
+        from synth.miner.backtest.regime_engine import (
+            PredictionBacktestEngine,
+            RegimeEngineConfig,
+            MarketTaxonomyRouter,
+            CaseKey,
+        )
+
+        mapping = {
+            "PredictionBacktestEngine": PredictionBacktestEngine,
+            "RegimeEngineConfig": RegimeEngineConfig,
+            "MarketTaxonomyRouter": MarketTaxonomyRouter,
+            "CaseKey": CaseKey,
         }
         return mapping[name]
     raise AttributeError(name)

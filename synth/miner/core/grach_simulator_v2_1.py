@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.stats import t as student_t
 from arch import arch_model
 from typing import Optional, Dict
-from synth.miner.core.regime_detection import (
+from synth.miner.regime import (
     REGIME_TYPE, 
     detect_market_regime_with_er, 
     detect_market_regime_with_bbw

@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Optional
 from arch import arch_model
 from arch.univariate import StudentsT
-from synth.miner.core.regime_detection import REGIME_TYPE, detect_market_regime_with_er
+from synth.miner.regime import REGIME_TYPE, detect_market_regime_with_er
 
 def compute_weekly_profile(prices: pd.Series, time_increment: int = 300) -> dict:
     log_ret = np.log(prices).diff().dropna()

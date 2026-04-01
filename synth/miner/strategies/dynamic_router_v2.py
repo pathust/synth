@@ -12,8 +12,8 @@ from typing import Any, Optional
 
 import numpy as np
 
+from synth.miner.regime import detect_pattern_v2
 from synth.miner.strategies.base import BaseStrategy
-from synth.miner.strategies.pattern_detector_v2 import detect_pattern
 from synth.miner.entry import _get_simulate_fn
 
 ROUTER_LOG_DIR = "synth/miner/logs/dynamic_router_v2"
@@ -149,7 +149,7 @@ class DynamicRouterV2Strategy(BaseStrategy):
         seed: Optional[int] = 42,
         **kwargs,
     ) -> np.ndarray:
-        pattern_data = detect_pattern(prices_dict)
+        pattern_data = detect_pattern_v2(prices_dict)
         pattern = pattern_data.get("pattern", "indecision")
         strength = float(pattern_data.get("strength", 0.0))
         strength_raw = float(pattern_data.get("strength_raw", strength))

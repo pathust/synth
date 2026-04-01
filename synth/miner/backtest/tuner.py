@@ -7,7 +7,7 @@ Extracted and enhanced from backtest_framework.py's GridSearch class.
 import itertools
 import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from synth.miner.strategies.base import BaseStrategy
 from synth.miner.backtest.runner import BacktestRunner
@@ -30,6 +30,8 @@ class GridSearchTuner:
         window_days: int = 30,
         param_grid: dict[str, list[Any]] | None = None,
         use_regimes: bool = False,
+        dates: Optional[list[datetime]] = None,
+        max_combinations: Optional[int] = None,
     ) -> dict:
         """
         Grid search over parameter combinations.
@@ -50,8 +52,18 @@ class GridSearchTuner:
             dict with best_params, best_score, all_results
         """
         if not use_regimes:
+            effective_runs = len(dates) if dates else num_runs
             return self._run_grid_search(
-                strategy, asset, frequency, None, num_runs, num_sims, seed, window_days, param_grid
+                strategy,
+                asset,
+                frequency,
+                dates,
+                effective_runs,
+                num_sims,
+                seed,
+                window_days,
+                param_grid,
+                max_combinations=max_combinations,
             )
 
         from datetime import timedelta, timezone
@@ -70,7 +82,16 @@ class GridSearchTuner:
                 continue
             print(f"\n[Tuner] === Tuning cho Regime: {rtype.upper()} ({len(dates)} ngày) ===")
             res = self._run_grid_search(
-                strategy, asset, frequency, dates, len(dates), num_sims, seed, window_days, param_grid
+                strategy,
+                asset,
+                frequency,
+                dates,
+                len(dates),
+                num_sims,
+                seed,
+                window_days,
+                param_grid,
+                max_combinations=max_combinations,
             )
             regime_results[rtype] = res
 
@@ -82,7 +103,17 @@ class GridSearchTuner:
         }
 
     def _run_grid_search(
-        self, strategy, asset, frequency, dates, num_runs, num_sims, seed, window_days, param_grid
+        self,
+        strategy,
+        asset,
+        frequency,
+        dates,
+        num_runs,
+        num_sims,
+        seed,
+        window_days,
+        param_grid,
+        max_combinations: Optional[int] = None,
     ):
         grid = param_grid or strategy.get_param_grid()
         if not grid:
@@ -102,6 +133,8 @@ class GridSearchTuner:
 
         keys, values = zip(*grid.items())
         combos = [dict(zip(keys, v)) for v in itertools.product(*values)]
+        if max_combinations and max_combinations > 0:
+            combos = combos[:max_combinations]
 
         print(
             f"\n[Tuner] Grid search for {strategy.name} × {asset} × "

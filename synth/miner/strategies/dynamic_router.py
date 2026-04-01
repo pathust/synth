@@ -1,8 +1,8 @@
 from typing import Optional
 import numpy as np
 
+from synth.miner.regime import detect_pattern_v1
 from synth.miner.strategies.base import BaseStrategy
-from synth.miner.strategies.pattern_detector import detect_pattern
 from synth.miner.entry import _get_simulate_fn
 
 class DynamicRouterStrategy(BaseStrategy):
@@ -47,7 +47,7 @@ class DynamicRouterStrategy(BaseStrategy):
     ) -> np.ndarray:
         
         # 1. Detect market condition using last 3 hours of granular data
-        pattern_data = detect_pattern(prices_dict)
+        pattern_data = detect_pattern_v1(prices_dict)
         bias = pattern_data["bias"]
         score = pattern_data["bias_score"]
         
