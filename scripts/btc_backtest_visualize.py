@@ -41,7 +41,7 @@ def main() -> None:
     for s in common:
         x, y = high_map[s], low_map[s]
         plt.scatter(x, y, s=28)
-        if s in {"garch_v4", "regime_switching", "garch_v2", "dynamic_router", "production_baseline"}:
+        if s in {"garch_v4", "regime_switching", "garch_v2", "weekly_garch_v4", "production_baseline"}:
             plt.annotate(s, (x, y), fontsize=8)
     plt.xlabel("High Avg CRPS")
     plt.ylabel("Low Avg CRPS")

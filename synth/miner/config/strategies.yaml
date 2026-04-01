@@ -17,23 +17,23 @@ routing:
     high:
       bull:
         models:
-          - name: "dynamic_router"
+          - name: "weekly_garch_v4"
             weight: 1.0
             params: {}
       high_vol:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v2_1"
             weight: 1.0
             params: {}
       ranging:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v4"
             weight: 1.0
             params: {}
     low:
       bull:
         models:
-          - name: "dynamic_router"
+          - name: "weekly_garch_v4"
             weight: 0.6
             params: {}
           - name: "garch_v2_2"
@@ -41,7 +41,7 @@ routing:
             params: {}
       high_vol:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v2_1"
             weight: 0.6
             params: {}
           - name: "garch_v2_2"
@@ -49,7 +49,7 @@ routing:
             params: {}
       ranging:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v4"
             weight: 0.6
             params: {}
           - name: "garch_v2_2"
@@ -59,23 +59,23 @@ routing:
     high:
       bull:
         models:
-          - name: "dynamic_router"
+          - name: "gjr_garch"
             weight: 1.0
             params: {}
       high_vol:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v2_2"
             weight: 1.0
             params: {}
       ranging:
         models:
-          - name: "dynamic_router"
+          - name: "ensemble_garch_v2_v4"
             weight: 1.0
             params: {}
     low:
       bull:
         models:
-          - name: "dynamic_router"
+          - name: "gjr_garch"
             weight: 0.6
             params: {}
           - name: "regime_switching"
@@ -83,7 +83,7 @@ routing:
             params: {}
       high_vol:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v2_2"
             weight: 0.6
             params: {}
           - name: "regime_switching"
@@ -91,7 +91,7 @@ routing:
             params: {}
       ranging:
         models:
-          - name: "dynamic_router"
+          - name: "ensemble_garch_v2_v4"
             weight: 0.6
             params: {}
           - name: "regime_switching"
@@ -136,23 +136,23 @@ routing:
     high:
       bull:
         models:
-          - name: "dynamic_router"
+          - name: "gjr_garch"
             weight: 1.0
             params: {}
       high_vol:
         models:
-          - name: "dynamic_router"
+          - name: "weekly_garch_v4"
             weight: 1.0
             params: {}
       ranging:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v4_2"
             weight: 1.0
             params: {}
     low:
       bull:
         models:
-          - name: "dynamic_router"
+          - name: "gjr_garch"
             weight: 0.6
             params: {}
           - name: "arima_equity"
@@ -160,7 +160,7 @@ routing:
             params: {}
       high_vol:
         models:
-          - name: "dynamic_router"
+          - name: "weekly_garch_v4"
             weight: 0.6
             params: {}
           - name: "arima_equity"
@@ -168,7 +168,7 @@ routing:
             params: {}
       ranging:
         models:
-          - name: "dynamic_router"
+          - name: "garch_v4_2"
             weight: 0.6
             params: {}
           - name: "arima_equity"

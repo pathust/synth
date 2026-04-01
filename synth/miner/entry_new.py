@@ -4,9 +4,7 @@ entry_simulations_new.py
 Entry-point thay thế cho `synth/miner/entry.py` nhưng dùng logic kiểu
 `simulations_new_v3.py` (ensemble + sequential fallback).
 
-Custom requirement:
-- BTC high, ETH high => dùng `dynamic_router_v2`
-- Các đồng/loại còn lại => giữ mapping như simulations_new_v3.py (lines 101-132 user provided)
+Legacy note: regime + strategies.yaml chọn model; mapping dưới đây chỉ dùng khi gọi legacy path.
 
 Để dùng trong miner:
     from synth.miner.entry_simulations_new import generate_simulations
@@ -25,15 +23,14 @@ from synth.validator.response_validation_v2 import validate_responses
 
 # ---------------------------------------------------------------------------
 # Strategy list per (asset, prompt_type) with WEIGHTS
-# NOTE: This mapping intentionally mirrors simulations_new_v3.py (101-132),
-# except BTC/ETH high are overridden to dynamic_router_v2.
+# NOTE: Fallback list when not using entry.generate_simulations + strategies.yaml.
 # ---------------------------------------------------------------------------
 STRATEGY_LIST_FOR_ASSET: dict[tuple[str, str], list[tuple[str, float]]] = {
     # HIGH
-    ("BTC", "high"): [("dynamic_router_v2", 1.0)],
-    ("ETH", "high"): [("dynamic_router_v2", 1.0)],
+    ("BTC", "high"): [("weekly_garch_v4", 1.0)],
+    ("ETH", "high"): [("gjr_garch", 1.0)],
     ("XAU", "high"): [("garch_v4_2", 1.0)],
-    ("SOL", "high"): [("dynamic_router_v2", 1.0)],
+    ("SOL", "high"): [("gjr_garch", 1.0)],
 
     # LOW
     ("BTC", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("gjr_garch", 0.3)],

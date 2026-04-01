@@ -18,18 +18,18 @@ from synth.miner.strategies.base import StrategyConfig
 # ─────────────────────────────────────────────────────────────────────
 PRODUCTION_CONFIG: dict[tuple[str, str], list[StrategyConfig]] = {
     # ── HIGH frequency (time_length=3600) ────────────────────────────
-    ("BTC", "high"): [StrategyConfig("dynamic_router", weight=1.0)],
-    ("ETH", "high"): [StrategyConfig("dynamic_router", weight=1.0)],
+    ("BTC", "high"): [StrategyConfig("weekly_garch_v4", weight=1.0)],
+    ("ETH", "high"): [StrategyConfig("gjr_garch", weight=1.0)],
     ("XAU", "high"): [StrategyConfig("garch_v4_1", weight=1.0)],
-    ("SOL", "high"): [StrategyConfig("dynamic_router", weight=1.0)],
+    ("SOL", "high"): [StrategyConfig("gjr_garch", weight=1.0)],
 
     # ── LOW frequency (time_length=86400) ────────────────────────────
     ("BTC", "low"): [
-        StrategyConfig("dynamic_router", weight=0.6),
+        StrategyConfig("weekly_garch_v4", weight=0.6),
         StrategyConfig("garch_v2_2", weight=0.4),
     ],
     ("ETH", "low"): [
-        StrategyConfig("dynamic_router", weight=0.6),
+        StrategyConfig("gjr_garch", weight=0.6),
         StrategyConfig("regime_switching", weight=0.4),
     ],
     ("XAU", "low"): [
@@ -38,7 +38,7 @@ PRODUCTION_CONFIG: dict[tuple[str, str], list[StrategyConfig]] = {
         StrategyConfig("weekly_regime_switching", weight=0.3),
     ],
     ("SOL", "low"): [
-        StrategyConfig("dynamic_router", weight=0.6),
+        StrategyConfig("gjr_garch", weight=0.6),
         StrategyConfig("arima_equity", weight=0.4),
     ],
 

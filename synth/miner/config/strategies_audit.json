@@ -30,7 +30,7 @@
         "params": {}
       },
       {
-        "name": "dynamic_router",
+        "name": "weekly_garch_v4",
         "weight": 0.33,
         "params": {}
       }
@@ -38,7 +38,7 @@
   },
   "top_results_summary": [
     {
-      "strategy": "dynamic_router",
+      "strategy": "weekly_garch_v4",
       "asset": "BTC",
       "frequency": "high",
       "avg_score": 1028.3434337924198,
@@ -46,7 +46,7 @@
       "successful_runs": 3
     },
     {
-      "strategy": "dynamic_router_v2",
+      "strategy": "weekly_garch_v4",
       "asset": "BTC",
       "frequency": "high",
       "avg_score": 1099.2779953946883,
@@ -158,7 +158,7 @@
       "successful_runs": 3
     },
     {
-      "strategy": "dynamic_router",
+      "strategy": "weekly_garch_v4",
       "asset": "BTC",
       "frequency": "low",
       "avg_score": 3839.5739650811024,
@@ -166,7 +166,7 @@
       "successful_runs": 3
     },
     {
-      "strategy": "dynamic_router_v2",
+      "strategy": "weekly_garch_v4",
       "asset": "BTC",
       "frequency": "low",
       "avg_score": 3937.17348233673,

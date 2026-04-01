@@ -24,8 +24,8 @@ def run_comparison(asset: str, time_increment: int, time_length: int, days_back:
     
     sim_fns = _build_simulator_functions()
     
-    # ── Strategy 1: Dynamic Router ──
-    dynamic_fn = sim_fns["dynamic_router"]
+    # ── Strategy 1: Baseline (single strategy, replaces old dynamic_router) ──
+    baseline_fn = sim_fns["weekly_garch_v4"]
     
     # ── Strategy 2: Production Miner Ensemble ──
     # Create a wrapper function that behaves like a standard simulate_fn 
@@ -63,17 +63,17 @@ def run_comparison(asset: str, time_increment: int, time_length: int, days_back:
             slot_dt = base_dt - timedelta(days=i) + timedelta(hours=h)
             eval_slots.append(slot_dt.isoformat().replace("+00:00", "Z"))
             
-    print(f"=== Compare: Dynamic Router vs Production Ensemble for {asset} ===")
+    print(f"=== Compare: weekly_garch_v4 vs Production Ensemble for {asset} ===")
     print(f"Freq: {time_length}s, Slots: {len(eval_slots)}")
     print("--------------------------------------------------\n")
     
-    results_summary = {"Dynamic Router": [], "Production Miner": []}
+    results_summary = {"weekly_garch_v4": [], "Production Miner": []}
     
-    # Evaluate Dynamic Router
-    print("--> Evaluating strategy: Dynamic Router")
+    # Evaluate baseline strategy
+    print("--> Evaluating strategy: weekly_garch_v4")
     router_results = engine.run_slots(
-        strategy_name="dynamic_router",
-        simulate_fn=dynamic_fn,
+        strategy_name="weekly_garch_v4",
+        simulate_fn=baseline_fn,
         asset=asset,
         eval_slots=eval_slots,
         num_simulations=num_simulations
@@ -81,7 +81,7 @@ def run_comparison(asset: str, time_increment: int, time_length: int, days_back:
     for r in router_results:
         crps = r["metrics"].get("CRPSEvaluator", -1.0)
         if crps > 0:
-            results_summary["Dynamic Router"].append(crps)
+            results_summary["weekly_garch_v4"].append(crps)
             
     # Evaluate Production Miner
     print("\n--> Evaluating strategy: Production Miner (Ensemble)")
