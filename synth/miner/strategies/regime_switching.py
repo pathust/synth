@@ -39,6 +39,7 @@ class RegimeSwitchingStrategy(BaseStrategy):
         "sideways_vol_mult": 0.8,
     }
     param_grid = {
+        "regime_method": ["er", "bbw"],
         "lookback_days": [14, 30, 45],
         "trending_vol_mult": [1.0, 1.1, 1.2, 1.3],
         "sideways_vol_mult": [0.6, 0.7, 0.8, 0.9],

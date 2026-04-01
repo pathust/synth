@@ -23,7 +23,7 @@ class SeasonalStockStrategy(BaseStrategy):
         "lookback_days": 20,
     }
     param_grid = {
-        "lookback_days": [10, 20, 30],
+        "lookback_days": [10, 20, 30, 45],
     }
 
     def simulate(

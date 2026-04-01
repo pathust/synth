@@ -37,6 +37,11 @@ class MarkovGarchJumpStrategy(BaseStrategy):
         "mu_J": 0.0, "sigma_J": 0.0005, "nu": 5.0,
     }
 
+    param_grid = {
+        "nu": [4.0, 5.0, 7.0],
+        "lookback_days": [12, 15, 22],
+    }
+
     # BỘ THAM SỐ HARDCODED RIÊNG CHO TỪNG TÀI SẢN (Vô hiệu hóa Auto-fit bằng lookback_days = 0)
     ASSET_PRIORS = {
         "SPYX": {

@@ -68,9 +68,11 @@ class JumpDiffusionStrategy(BaseStrategy):
         "jump_intensity_override": None,
         "jump_mean_override": None,
         "jump_std_override": None,
+        "jump_vol_scale": 1.0,
     }
     param_grid = {
         "lookback_days": [14, 30, 45],
+        "jump_vol_scale": [0.8, 1.0, 1.25],
     }
 
     def simulate(
@@ -115,6 +117,8 @@ class JumpDiffusionStrategy(BaseStrategy):
         lam = params["jump_intensity_override"] or jp["jump_intensity"]
         jm = params["jump_mean_override"] or jp["jump_mean"]
         js = params["jump_std_override"] or jp["jump_std"]
+        jv_scale = float(params.get("jump_vol_scale", 1.0))
+        js = float(js) * jv_scale
 
         # ── 3. Simulate ──
         steps = time_length // time_increment

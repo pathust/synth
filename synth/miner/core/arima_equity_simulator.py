@@ -8,7 +8,16 @@ from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
 warnings.simplefilter('ignore', ConvergenceWarning)
 
-def simulate_arima_us_equity_exact(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42, extended_hours: bool = False):
+def simulate_arima_us_equity_exact(
+    prices_dict,
+    asset,
+    time_increment,
+    time_length,
+    n_sims=1000,
+    seed: Optional[int] = 42,
+    extended_hours: bool = False,
+    **kwargs,
+):
     """
     Simulates US Equity prices by hardcoding strictly enforced US Market Hours 
     (09:30 AM to 04:00 PM Eastern Time) or Extended Hours (04:00 AM to 08:00 PM).
@@ -18,7 +27,15 @@ def simulate_arima_us_equity_exact(prices_dict, asset, time_increment, time_leng
     
     Any step outside market hours will have exactly 0 variance and 0 drift.
     At the configured market open (09:30 AM or 04:00 AM), an overnight/weekend Gap variance is applied.
+
+    Optional kwargs (grid search):
+        off_hours_vol_scale — multiply intraday resid_std for off-hours noise (default: 0.1 NVDAX, else 0.3).
+        off_hours_mu_scale — multiply mu for off-hours drift (default: same as vol scale path).
     """
+    off_hours_vol_scale = kwargs.pop("off_hours_vol_scale", None)
+    off_hours_mu_scale = kwargs.pop("off_hours_mu_scale", None)
+    kwargs.clear()
+
     if seed is not None:
         np.random.seed(seed)
         
@@ -164,13 +181,21 @@ def simulate_arima_us_equity_exact(prices_dict, asset, time_increment, time_leng
             # OUT-OF-HOURS (Weekend, overnight).
             # The market technically moves very slightly off-hours due to pre-market / after-hours trading.
             # Locking it to exactly 0 or 1e-6 causes massive CRPS penalty if the real price shifts.
-            if asset == "NVDAX":
-                # NVDAX cuối tuần giao dịch rất ít trên sàn phái sinh/tokenized
-                # → hạ noise xuống 10% để bám sát đường thẳng băng, tránh CRPS penalty
-                returns_bps[t, :] = np.random.normal(mu * 0.1, resid_std * 0.1, size=n_sims)
-            else:
-                # Default: Using 30% of intraday variance handles typical pre-market/after-hours drifting
-                returns_bps[t, :] = np.random.normal(mu * 0.3, resid_std * 0.3, size=n_sims)
+            default_v = 0.1 if asset == "NVDAX" else 0.3
+            default_m = default_v
+            v_scale = (
+                float(off_hours_vol_scale)
+                if off_hours_vol_scale is not None
+                else default_v
+            )
+            m_scale = (
+                float(off_hours_mu_scale)
+                if off_hours_mu_scale is not None
+                else default_m
+            )
+            returns_bps[t, :] = np.random.normal(
+                mu * m_scale, resid_std * v_scale, size=n_sims
+            )
             
     # Output paths mapping
     log_ret = returns_bps / 10000.0

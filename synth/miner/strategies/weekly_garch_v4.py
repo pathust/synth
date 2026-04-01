@@ -9,16 +9,22 @@ class WeeklyGarchV4Strategy(BaseStrategy):
     description = "GARCH V4 blended with Weekly Empirical Seasonality for specific stock hours."
     supported_asset_types = ["equity"]
     supported_regimes = ["market_open", "overnight"]
-    default_params = {}
+    default_params = {"lookback_days": 90}
+    param_grid = {
+        "lookback_days": [45, 60, 90, 120],
+    }
 
     def simulate(self, prices_dict: dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs) -> np.ndarray:
+        params = self.get_default_params()
+        params.update(kwargs)
         return simulate_weekly_garch_v4(
             prices_dict=prices_dict,
             asset=asset,
             time_increment=time_increment,
             time_length=time_length,
             n_sims=n_sims,
-            seed=seed
+            seed=seed,
+            **params,
         )
 
 strategy = WeeklyGarchV4Strategy()

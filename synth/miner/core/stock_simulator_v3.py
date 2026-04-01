@@ -29,18 +29,28 @@ def get_future_weekly_factors(start_time, steps, time_increment, profile_map):
         factors.append(val)
     return np.array(factors)
 
-def simulate_weekly_garch_v4(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42):
+def simulate_weekly_garch_v4(
+    prices_dict,
+    asset,
+    time_increment,
+    time_length,
+    n_sims=1000,
+    seed: Optional[int] = 42,
+    **kwargs,
+):
     if seed is not None:
         np.random.seed(seed)
-    
+
+    lookback_days = int(kwargs.pop("lookback_days", 90))
+    # Absorb any other tuning keys so grid search can pass a fixed superset.
+    kwargs.clear()
+
     timestamps = pd.to_datetime([int(ts) for ts in prices_dict.keys()], unit='s')
     full_prices = pd.Series(list(prices_dict.values()), index=timestamps).sort_index()
     S0 = float(full_prices.iloc[-1])
     steps = time_length // time_increment
     
     profile_map, global_mean = compute_weekly_profile(full_prices, time_increment)
-    
-    lookback_days = 90
     points = int(lookback_days * 86400 // time_increment)
     hist_prices = full_prices.tail(points)
     

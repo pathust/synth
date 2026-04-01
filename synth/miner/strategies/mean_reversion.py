@@ -61,6 +61,8 @@ class MeanReversionStrategy(BaseStrategy):
     }
     param_grid = {
         "lookback_days": [14, 30, 45, 60],
+        # days; None = use OLS-fitted mean-reversion speed
+        "half_life_override": [None, 7.0, 14.0],
     }
 
     def simulate(

@@ -14,6 +14,10 @@ class EquityExactHoursStrategy(BaseStrategy):
     supported_regimes = ["market_open", "overnight"]
     default_params = {}
 
+    param_grid = {
+        "gap_ceiling_bps": [40.0, 55.0, 80.0],
+    }
+
     def simulate(
         self,
         prices_dict: dict,

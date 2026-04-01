@@ -29,6 +29,7 @@ class GarchV4Strategy(BaseStrategy):
     param_grid = {
         "lookback_days": [7, 14, 25, 45],
         "momentum_weight": [0.2, 0.4, 0.6, 0.8],
+        "drift_decay": [0.90, 0.92, 0.96],
     }
 
     def simulate(

@@ -25,7 +25,7 @@ class HarRvStrategy(BaseStrategy):
         "lookback_days": 30,
     }
     param_grid = {
-        "lookback_days": [30, 45, 60],
+        "lookback_days": [21, 30, 45, 60],
     }
 
     def simulate(

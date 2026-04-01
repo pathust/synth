@@ -5,7 +5,16 @@ from arch import arch_model
 from arch.univariate import StudentsT
 import pytz
 
-def simulate_us_equity_exact(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42, extended_hours: bool = False):
+def simulate_us_equity_exact(
+    prices_dict,
+    asset,
+    time_increment,
+    time_length,
+    n_sims=1000,
+    seed: Optional[int] = 42,
+    extended_hours: bool = False,
+    **kwargs,
+):
     """
     Simulates US Equity prices by hardcoding strictly enforced US Market Hours 
     (09:30 AM to 04:00 PM Eastern Time) or Extended Hours (04:00 AM to 08:00 PM).
@@ -13,7 +22,13 @@ def simulate_us_equity_exact(prices_dict, asset, time_increment, time_length, n_
     Any step outside these hours will have exactly 0 variance and 0 drift.
     At exactly 09:30 AM ET, an overnight/weekend Gap variance is applied.
     During intraday hours (09:35 AM to 15:55 PM), a GARCH(1,1) model fitted on intraday returns is applied.
+
+    Optional kwargs:
+        gap_ceiling_bps — cap on gap std in basis points (default: 80 TSLAX, 50 others).
     """
+    gap_ceiling_bps = kwargs.pop("gap_ceiling_bps", None)
+    kwargs.clear()
+
     if seed is not None:
         np.random.seed(seed)
         
@@ -145,8 +160,11 @@ def simulate_us_equity_exact(prices_dict, asset, time_increment, time_length, n_
                     is_market_open = True
                 
         if is_opening_gap:
-            # TSLAX có gap mở phiên rất lớn → nới ceiling lên 80 BPS
-            gap_ceiling = 80.0 if asset == "TSLAX" else 50.0
+            if gap_ceiling_bps is not None:
+                gap_ceiling = float(gap_ceiling_bps)
+            else:
+                # TSLAX có gap mở phiên rất lớn → nới ceiling lên 80 BPS
+                gap_ceiling = 80.0 if asset == "TSLAX" else 50.0
             safe_gap_std = gap_std if gap_std < gap_ceiling else 20.0
             step_return = gap_mu + safe_gap_std * z_gap[t, :]
             returns_bps[t, :] = step_return

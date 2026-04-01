@@ -14,6 +14,11 @@ class ArimaEquityStrategy(BaseStrategy):
     supported_regimes = ["market_open", "overnight"]
     default_params = {}
 
+    param_grid = {
+        "off_hours_vol_scale": [0.1, 0.2, 0.35],
+        "off_hours_mu_scale": [0.05, 0.1, 0.2],
+    }
+
     def simulate(
         self,
         prices_dict: dict,

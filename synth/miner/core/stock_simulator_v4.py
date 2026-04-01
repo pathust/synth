@@ -30,7 +30,15 @@ def get_future_weekly_factors(start_time, steps, time_increment, profile_map):
         factors.append(val)
     return np.array(factors)
 
-def simulate_weekly_regime_switching(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42):
+def simulate_weekly_regime_switching(
+    prices_dict,
+    asset,
+    time_increment,
+    time_length,
+    n_sims=1000,
+    seed: Optional[int] = 42,
+    **kwargs,
+):
     if seed is not None:
         np.random.seed(seed)
         
@@ -41,26 +49,45 @@ def simulate_weekly_regime_switching(prices_dict, asset, time_increment, time_le
     
     profile_map, global_mean = compute_weekly_profile(full_prices, time_increment)
     
-    # ── Per-asset config ──────────────────────────────────────────
-    lookback_days      = 60    # default
-    regime_lookback    = 20    # default (nến)
-    trending_vol_mult  = 1.2   # default
-    sideways_vol_mult  = 0.8   # default (không đổi)
+    # ── Per-asset config (tuning may override via kwargs) ─────────
+    cfg = {
+        "lookback_days": 60,
+        "regime_lookback": 20,
+        "trending_vol_mult": 1.2,
+        "sideways_vol_mult": 0.8,
+    }
 
     if asset == "GOOGLX":
-        # GOOGLX có xu hướng spike mạnh trong ngày → cần regime nhạy hơn
-        lookback_days     = 45   # Quên bớt lịch sử cũ, focus hành vi gần đây
-        regime_lookback   = 12   # 12 nến × 5m = 1 giờ → bắt pump nhanh hơn
-        trending_vol_mult = 1.3  # Bao phủ đỉnh giá tốt hơn khi trending
+        cfg.update(
+            {
+                "lookback_days": 45,
+                "regime_lookback": 12,
+                "trending_vol_mult": 1.3,
+            }
+        )
     elif asset == "TSLAX":
-        # TSLAX đảo chiều rất gắt → cần regime siêu nhạy, giữ lookback mặc định
-        regime_lookback   = 12   # 12 nến × 5m = 1 giờ → phát hiện reversal nhanh
-        trending_vol_mult = 1.25 # Nới vol nhẹ để bao phủ các cú gap
-    elif asset == "AAPLX":
-        # AAPLX di chuyển "đầm", tính chu kỳ cao → cần lịch sử dài để profile_map chuẩn
-        # Giữ nguyên tất cả default: lookback=60d, regime_lookback=20, trending=1.2
-        pass  # Intentional: defaults are optimal for AAPLX
-    # ─────────────────────────────────────────────────────────────
+        cfg.update(
+            {
+                "regime_lookback": 12,
+                "trending_vol_mult": 1.25,
+            }
+        )
+
+    _tunable = (
+        "lookback_days",
+        "regime_lookback",
+        "trending_vol_mult",
+        "sideways_vol_mult",
+    )
+    for k in _tunable:
+        if k in kwargs:
+            cfg[k] = kwargs.pop(k)
+    kwargs.clear()
+
+    lookback_days = int(cfg["lookback_days"])
+    regime_lookback = int(cfg["regime_lookback"])
+    trending_vol_mult = float(cfg["trending_vol_mult"])
+    sideways_vol_mult = float(cfg["sideways_vol_mult"])
 
     points = int(lookback_days * 86400 // time_increment)
     hist_prices = full_prices.tail(points)
@@ -68,7 +95,9 @@ def simulate_weekly_regime_switching(prices_dict, asset, time_increment, time_le
     # --- REGIME DETECTION ---
     regime_info = detect_market_regime_with_er(hist_prices, lookback=regime_lookback)
     is_trending = regime_info["type"] == REGIME_TYPE.TRENDING
-    vol_multiplier = trending_vol_mult if is_trending else sideways_vol_mult
+    vol_multiplier = (
+        trending_vol_mult if is_trending else sideways_vol_mult
+    )
     
     raw_returns = np.log(hist_prices.ffill()).diff().dropna()
     hist_factors = []
