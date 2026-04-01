@@ -1,0 +1,50 @@
+version: "1.0"
+project: "strategy_tuning_template"
+asset: "BTC"
+frequencies:
+  - "high"
+  - "low"
+evaluation:
+  metric_primary: "CRPS"
+  metric_secondary:
+    - "RMSE"
+    - "MAE"
+  min_successful_runs: 3
+grid_search:
+  enabled: true
+  num_runs: 5
+  num_sims: 50
+  window_days: 30
+  seed: 42
+  strategy: "new_strategy_template"
+  param_grid:
+    drift:
+      - -0.0002
+      - 0.0
+      - 0.0002
+    vol:
+      - 0.005
+      - 0.01
+      - 0.02
+walk_forward:
+  enabled: true
+  train_days: 60
+  validate_days: 14
+  step_days: 14
+cross_validation:
+  enabled: true
+  method: "rolling"
+  folds: 5
+  purge_days: 1
+risk:
+  max_position_notional: 100000
+  max_leverage: 2.0
+  stop_loss_pct: 0.03
+execution:
+  fee_bps: 2.0
+  spread_bps: 1.5
+  slippage_alpha: 5.0
+  slippage_beta: 1.2
+output:
+  result_dir: "result/dev_scan"
+  export_yaml_path: "synth/miner/config/strategies.yaml"
