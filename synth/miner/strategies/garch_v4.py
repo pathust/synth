@@ -21,8 +21,15 @@ class GarchV4Strategy(BaseStrategy):
     )
     supported_assets = []  # all assets
     supported_frequencies = ["high", "low"]
-    default_params = {}
-    param_grid = {}
+    default_params = {
+        "lookback_days": 25,
+        "momentum_weight": 0.5,
+        "drift_decay": 0.92,
+    }
+    param_grid = {
+        "lookback_days": [7, 14, 25, 45],
+        "momentum_weight": [0.2, 0.4, 0.6, 0.8],
+    }
 
     def simulate(
         self,
@@ -34,6 +41,8 @@ class GarchV4Strategy(BaseStrategy):
         seed: Optional[int] = 42,
         **kwargs,
     ) -> np.ndarray:
+        params = self.get_default_params()
+        params.update(kwargs)
         return simulate_single_price_path_with_garch(
             prices_dict,
             asset=asset,
@@ -41,7 +50,7 @@ class GarchV4Strategy(BaseStrategy):
             time_length=time_length,
             n_sims=n_sims,
             seed=seed,
-            **kwargs,
+            **params,
         )
 
 

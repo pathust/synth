@@ -29,9 +29,11 @@ class GridSearchTuner:
         seed: int = 42,
         window_days: int = 30,
         param_grid: dict[str, list[Any]] | None = None,
+        use_regimes: bool = False,
     ) -> dict:
         """
         Grid search over parameter combinations.
+        If use_regimes=True, it finds best params per regime.
         
         Args:
             strategy: Strategy to tune
@@ -42,10 +44,46 @@ class GridSearchTuner:
             seed: Random seed
             window_days: Historical window for random dates
             param_grid: Override param grid; defaults to strategy's own grid
+            use_regimes: If True, tune parameters per regime
             
         Returns:
             dict with best_params, best_score, all_results
         """
+        if not use_regimes:
+            return self._run_grid_search(
+                strategy, asset, frequency, None, num_runs, num_sims, seed, window_days, param_grid
+            )
+
+        from datetime import timedelta, timezone
+        end_date = datetime.now(timezone.utc).replace(
+            minute=0, second=0, microsecond=0
+        ) - timedelta(days=2)
+        start_date = end_date - timedelta(days=window_days)
+
+        regime_dates = self.runner.get_regime_dates(
+            asset, start_date, end_date, num_per_regime=num_runs, seed=seed
+        )
+
+        regime_results = {}
+        for rtype, dates in regime_dates.items():
+            if not dates:
+                continue
+            print(f"\n[Tuner] === Tuning cho Regime: {rtype.upper()} ({len(dates)} ngày) ===")
+            res = self._run_grid_search(
+                strategy, asset, frequency, dates, len(dates), num_sims, seed, window_days, param_grid
+            )
+            regime_results[rtype] = res
+
+        return {
+            "strategy": strategy.name,
+            "asset": asset,
+            "use_regimes": True,
+            "regime_results": regime_results
+        }
+
+    def _run_grid_search(
+        self, strategy, asset, frequency, dates, num_runs, num_sims, seed, window_days, param_grid
+    ):
         grid = param_grid or strategy.get_param_grid()
         if not grid:
             print(
@@ -54,7 +92,7 @@ class GridSearchTuner:
             )
             result = self.runner.run_benchmark(
                 strategy, asset, frequency, num_runs, num_sims, seed,
-                window_days,
+                window_days, dates=dates,
             )
             return {
                 "best_params": strategy.get_default_params(),
@@ -81,7 +119,7 @@ class GridSearchTuner:
             t0 = time.time()
             result = self.runner.run_benchmark(
                 strategy, asset, frequency, num_runs, num_sims, seed,
-                window_days, **params,
+                window_days, dates=dates, **params,
             )
             elapsed = time.time() - t0
 

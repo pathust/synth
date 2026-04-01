@@ -91,6 +91,11 @@ def main():
         default="result",
         help="Directory for output files",
     )
+    parser.add_argument(
+        "--tune-regimes",
+        action="store_true",
+        help="Tune strategies per market regime (bullish/bearish/neutral) instead of randomly"
+    )
     args = parser.parse_args()
 
     # ── 1. Discover strategies ──
@@ -147,16 +152,29 @@ def main():
                 )
                 continue
 
-            print(f"\n[Tune] Tuning {strat_name} for {asset} × {freq}")
-            tune_result = tuner.run(
-                strategy,
-                asset,
-                freq,
-                num_runs=max(args.num_runs, 3),
-                num_sims=args.num_sims,
-                seed=args.seed,
-                window_days=args.window_days,
-            )
+            if args.tune_regimes:
+                print(f"\n[Tuner] Grid Search theo Regime cho {strat_name} tr\u00ean {asset}")
+                tune_result = tuner.run(
+                    strategy,
+                    asset,
+                    freq,
+                    num_runs=max(args.num_runs, 3),
+                    num_sims=args.num_sims,
+                    seed=args.seed,
+                    window_days=args.window_days,
+                    use_regimes=True
+                )
+            else:
+                print(f"\n[Tuner] Grid Search chung cho {strat_name} tr\u00ean {asset}")
+                tune_result = tuner.run(
+                    strategy,
+                    asset,
+                    freq,
+                    num_runs=max(args.num_runs, 3),
+                    num_sims=args.num_sims,
+                    seed=args.seed,
+                    window_days=args.window_days,
+                )
             tuning_results.append(tune_result)
 
     # ── 6. Export ──

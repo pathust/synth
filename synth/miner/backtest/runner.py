@@ -21,6 +21,7 @@ from synth.simulation_input import SimulationInput
 from synth.utils.helpers import convert_prices_to_time_format
 from synth.validator.response_validation_v2 import validate_responses
 from synth.validator import prompt_config
+from synth.miner.strategies.pattern_detector_v2 import detect_pattern
 
 
 def _get_prompt_config(frequency: str):
@@ -195,6 +196,74 @@ class BacktestRunner:
                 "score": float("inf"),
             }
 
+    def get_regime_dates(
+        self,
+        asset: str,
+        start_date: datetime,
+        end_date: datetime,
+        num_per_regime: int = 5,
+        pool_size: int = 150,
+        seed: int = 42,
+    ) -> dict[str, list[datetime]]:
+        """
+        Tìm và phân loại các ngày backtest vào 3 tập regime: bullish, bearish, neutral.
+        Sử dụng pattern_detector_v2 để có độ chính xác cao hơn regime_detection_er.
+        """
+        import random
+        random.seed(seed)
+        
+        # 1. Load dữ liệu 1m để thực hiện detect pattern
+        hist_data = self.data_handler.load_price_data(asset, "1m")
+        if not hist_data or "1m" not in hist_data:
+            print(f"  ⚠ Không có dữ liệu 1m cho {asset}, không thể xác định regime.")
+            return {"bullish": [], "bearish": [], "neutral": []}
+        
+        prices_dict = hist_data["1m"]
+        
+        # 2. Tạo một pool các ngày ngẫu nhiên để quét
+        candidate_dates = get_random_dates(start_date, end_date, pool_size, seed)
+        
+        regimes = {
+            "bullish": [],
+            "bearish": [],
+            "neutral": []
+        }
+        
+        print(f"[RegimeScanner] Đang quét {pool_size} ngày để tìm regimes cho {asset}...")
+        
+        for d in candidate_dates:
+            # Dừng nếu đã đủ số lượng cho tất cả các tập
+            if all(len(dates) >= num_per_regime for dates in regimes.values()):
+                break
+                
+            # 3. Chuẩn bị window 181 phút dữ liệu TRƯỚC thời điểm d
+            ts_end = int(d.timestamp())
+            window_start = ts_end - (181 * 60)
+            
+            # Filter nhanh từ prices_dict
+            filtered_window = {
+                k: v for k, v in prices_dict.items() 
+                if window_start <= int(k) < ts_end
+            }
+            
+            # Kiểm tra đủ dữ liệu để detect (cần 181 điểm)
+            if len(filtered_window) < 181:
+                continue
+                
+            # 4. Sử dụng pattern_detector_v2 để xác định bias
+            pattern_data = detect_pattern(filtered_window)
+            bias = pattern_data.get("bias", "neutral")
+            
+            # 5. Phân loại vào tập tương ứng
+            if len(regimes[bias]) < num_per_regime:
+                regimes[bias].append(d)
+                
+        # Log kết quả thu được
+        for r, dates in regimes.items():
+            print(f"  → Found {len(dates)} {r.upper()} dates")
+            
+        return regimes
+
     def run_benchmark(
         self,
         strategy: BaseStrategy,
@@ -204,17 +273,20 @@ class BacktestRunner:
         num_sims: int = 100,
         seed: int = 42,
         window_days: int = 30,
+        dates: Optional[list[datetime]] = None,
         **strategy_kwargs,
     ) -> dict:
         """
-        Run multiple backtests over random dates and return aggregate results.
+        Run multiple backtests over random dates or specific dates and return aggregate results.
         """
-        end_date = datetime.now(timezone.utc).replace(
-            minute=0, second=0, microsecond=0
-        ) - timedelta(days=2)
-        start_date = end_date - timedelta(days=window_days)
-
-        dates = get_random_dates(start_date, end_date, num_runs, seed)
+        if dates is None:
+            end_date = datetime.now(timezone.utc).replace(
+                minute=0, second=0, microsecond=0
+            ) - timedelta(days=2)
+            start_date = end_date - timedelta(days=window_days)
+            dates = get_random_dates(start_date, end_date, num_runs, seed)
+        else:
+            num_runs = len(dates)
 
         scores = []
         results = []

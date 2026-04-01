@@ -21,8 +21,12 @@ class HarRvStrategy(BaseStrategy):
     )
     supported_assets = ["BTC", "ETH", "SOL", "XAU"]
     supported_frequencies = ["high", "low"]
-    default_params = {}
-    param_grid = {}  # HAR-RV has few tunable params
+    default_params = {
+        "lookback_days": 30,
+    }
+    param_grid = {
+        "lookback_days": [30, 45, 60],
+    }
 
     def simulate(
         self,
@@ -34,6 +38,8 @@ class HarRvStrategy(BaseStrategy):
         seed: Optional[int] = 42,
         **kwargs,
     ) -> np.ndarray:
+        params = self.get_default_params()
+        params.update(kwargs)
         return simulate_single_price_path_with_har_garch(
             prices_dict,
             asset=asset,
@@ -41,6 +47,7 @@ class HarRvStrategy(BaseStrategy):
             time_length=time_length,
             n_sims=n_sims,
             seed=seed,
+            **params,
         )
 
 

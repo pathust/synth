@@ -73,7 +73,7 @@ def get_future_seasonality(start_time, steps, time_increment, profile):
 # ==========================================
 # 🚀 2. SEASONAL GARCH SIMULATION
 # ==========================================
-def simulate_seasonal_stock(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42):
+def simulate_seasonal_stock(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42, **kwargs):
     if seed is not None:
         np.random.seed(seed)
     """
@@ -93,7 +93,7 @@ def simulate_seasonal_stock(prices_dict, asset, time_increment, time_length, n_s
     
     # 3. Deseasonalize Data (Khử mùa)
     # Lấy dữ liệu lookback để fit
-    lookback_days = 20 # 20 ngày gần nhất
+    lookback_days = kwargs.get("lookback_days", 20)
     points = int(lookback_days * 86400 // time_increment)
     hist_prices = full_prices.tail(points)
     

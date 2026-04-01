@@ -191,7 +191,7 @@ def simulate_garch_paths_har_normalized(fitted_res,
     }
     return prices, meta
 
-def simulate_single_price_path_with_har_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42):
+def simulate_single_price_path_with_har_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs):
     
     # Sắp xếp và xử lý dữ liệu lịch sử
     timestamps = pd.to_datetime([int(ts) for ts in prices_dict.keys()], unit='s')

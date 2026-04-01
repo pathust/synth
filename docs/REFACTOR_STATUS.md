@@ -31,6 +31,9 @@
 - Ổn định compatibility entrypoint:
   - `synth/miner/run.py` dùng `synth.miner.entry.generate_simulations`,
   - `synth/miner/entry_new.py` chuyển thành wrapper deprecate và delegate sang entry chuẩn.
+- Dọn dẹp codebase:
+  - xóa file backup tạm `synth/miner/config/strategies.yaml.bak.20260401_104703`,
+  - xóa module chết `synth/utils/async_scheduler.py` (không còn import/runtime dependency).
 
 ## Kiểm thử đã bổ sung
 

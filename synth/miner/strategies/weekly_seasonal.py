@@ -21,8 +21,12 @@ class WeeklySeasonalStrategy(BaseStrategy):
     )
     supported_assets = ["TSLAX", "AAPLX", "GOOGLX", "SPYX", "NVDAX", "XAU"]
     supported_frequencies = ["high", "low"]
-    default_params = {}
-    param_grid = {}
+    default_params = {
+        "lookback_days": 60,
+    }
+    param_grid = {
+        "lookback_days": [30, 45, 60, 90],
+    }
 
     def simulate(
         self,
@@ -34,6 +38,8 @@ class WeeklySeasonalStrategy(BaseStrategy):
         seed: Optional[int] = 42,
         **kwargs,
     ) -> np.ndarray:
+        params = self.get_default_params()
+        params.update(kwargs)
         return simulate_weekly_seasonal_optimized(
             prices_dict,
             asset=asset,
@@ -41,6 +47,7 @@ class WeeklySeasonalStrategy(BaseStrategy):
             time_length=time_length,
             n_sims=n_sims,
             seed=seed,
+            **params,
         )
 
 

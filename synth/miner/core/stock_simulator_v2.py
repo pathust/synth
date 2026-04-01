@@ -70,7 +70,7 @@ def get_future_weekly_factors(start_time, steps, time_increment, profile_map):
     return np.array(factors)
 
 
-def simulate_weekly_seasonal_optimized(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42):
+def simulate_weekly_seasonal_optimized(prices_dict, asset, time_increment, time_length, n_sims=1000, seed: Optional[int] = 42, **kwargs):
     if seed is not None:
         np.random.seed(seed)
     # 1. Prepare Data
@@ -85,7 +85,7 @@ def simulate_weekly_seasonal_optimized(prices_dict, asset, time_increment, time_
     profile_map, global_mean = compute_weekly_profile(full_prices, time_increment)
     
     # 3. Deseasonalize (Khử mùa để fit GARCH)
-    lookback_days = 60 # Lấy 60 ngày gần nhất để fit
+    lookback_days = kwargs.get("lookback_days", 60)
     points = int(lookback_days * 86400 // time_increment)
     hist_prices = full_prices.tail(points)
     

@@ -19,8 +19,12 @@ class SeasonalStockStrategy(BaseStrategy):
     )
     supported_assets = ["NVDAX"]
     supported_frequencies = ["low"]
-    default_params = {}
-    param_grid = {}
+    default_params = {
+        "lookback_days": 20,
+    }
+    param_grid = {
+        "lookback_days": [10, 20, 30],
+    }
 
     def simulate(
         self,
@@ -32,6 +36,8 @@ class SeasonalStockStrategy(BaseStrategy):
         seed: Optional[int] = 42,
         **kwargs,
     ) -> np.ndarray:
+        params = self.get_default_params()
+        params.update(kwargs)
         return simulate_seasonal_stock(
             prices_dict,
             asset=asset,
@@ -39,6 +45,7 @@ class SeasonalStockStrategy(BaseStrategy):
             time_length=time_length,
             n_sims=n_sims,
             seed=seed,
+            **params,
         )
 
 
