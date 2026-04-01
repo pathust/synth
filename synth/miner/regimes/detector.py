@@ -2,13 +2,18 @@
 Regime detection for Strategy Selector (docs/ARCHITECTURE.md).
 
 Maps to REGIME_TYPES in strategies.base:
-- crypto: bull / high_vol / ranging
+- crypto: bull / high_vol / ranging  (same *names* for high and low; detection logic differs)
 - gold: trending / mean_reverting
 - equity: market_open / overnight / earnings
+
+Crypto **high** uses `detect_pattern_v2` (bullish/bearish/neutral → bull/high_vol/ranging).
+Crypto **low** uses ER + short-window vol/drawdown on the same label set so `strategies.yaml`
+can use one schema under `high` and `low`.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, time as dtime, timezone
 
@@ -80,12 +85,16 @@ def _detect_crypto_high(history_dict: dict[str, float]) -> RegimeResult:
 
 
 def _detect_crypto_low(history_dict: dict[str, float]) -> RegimeResult:
+    """
+    Same regime *labels* as _detect_crypto_high (bull | high_vol | ranging) for YAML alignment;
+    logic differs: ER + realized-vol stress, not pattern_v2.
+    """
     try:
         keys = sorted(history_dict.keys(), key=lambda x: int(x))
         if len(keys) < 30:
             return RegimeResult("crypto", "ranging", 0.0, None)
         tail = keys[-2000:]
-        s = pd.Series([float(history_dict[k]) for k in tail])
+        s = pd.Series([float(history_dict[k]) for k in tail], dtype=float).clip(lower=1e-12)
         info = detect_market_regime_with_er(s, lookback=20)
         if info.get("type") == RegimeType.TRENDING:
             return RegimeResult(
@@ -94,12 +103,39 @@ def _detect_crypto_low(history_dict: dict[str, float]) -> RegimeResult:
                 float(info.get("strength", 0.0)),
                 {"er": info},
             )
+
+        logp = pd.Series([math.log(max(float(x), 1e-12)) for x in s.values])
+        dlog = logp.diff().dropna()
+        if len(dlog) < 80:
+            return RegimeResult(
+                "crypto",
+                "ranging",
+                0.3,
+                {"er": info},
+            )
+
+        long_std = float(dlog.std())
+        tail = dlog.iloc[-min(120, len(dlog)) :]
+        recent_std = float(tail.std())
+        vol_ratio = recent_std / long_std if long_std > 1e-12 else 1.0
+        short_ret = float(dlog.iloc[-min(48, len(dlog)) :].sum())
+
+        if vol_ratio > 1.35 or short_ret < -0.008:
+            conf = min(1.0, max(vol_ratio - 1.0, abs(short_ret) * 50.0))
+            return RegimeResult(
+                "crypto",
+                "high_vol",
+                conf,
+                {"er": info, "vol_ratio": vol_ratio, "short_ret": short_ret},
+            )
+
         return RegimeResult(
             "crypto",
             "ranging",
-            1.0 - float(info.get("strength", 0.0)),
-            {"er": info},
+            max(0.0, 1.0 - float(info.get("strength", 0.0))),
+            {"er": info, "vol_ratio": vol_ratio},
         )
+
     except Exception:
         return RegimeResult("crypto", "ranging", 0.0, None)
 

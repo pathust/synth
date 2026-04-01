@@ -30,6 +30,8 @@ class GridSearchTuner:
         window_days: int = 30,
         param_grid: dict[str, list[Any]] | None = None,
         use_regimes: bool = False,
+        regime_date_mode: str = "production",
+        production_regime_pool_size: Optional[int] = None,
         dates: Optional[list[datetime]] = None,
         max_combinations: Optional[int] = None,
     ) -> dict:
@@ -47,7 +49,12 @@ class GridSearchTuner:
             window_days: Historical window for random dates
             param_grid: Override param grid; defaults to strategy's own grid
             use_regimes: If True, tune parameters per regime
-            
+            regime_date_mode: ``production`` — bucket dates with
+                ``detect_regime`` (same as miner routing); ``pattern`` — legacy
+                bullish/bearish/neutral from ``detect_pattern_v2`` on 1m only.
+            production_regime_pool_size: Random candidate dates to sample when
+                ``regime_date_mode`` is ``production`` (default: ``max(2500, num_runs*150)``).
+
         Returns:
             dict with best_params, best_score, all_results
         """
@@ -66,15 +73,36 @@ class GridSearchTuner:
                 max_combinations=max_combinations,
             )
 
+        if regime_date_mode not in ("production", "pattern"):
+            raise ValueError(
+                "regime_date_mode must be 'production' or 'pattern', "
+                f"got {regime_date_mode!r}"
+            )
+
         from datetime import timedelta, timezone
         end_date = datetime.now(timezone.utc).replace(
             minute=0, second=0, microsecond=0
         ) - timedelta(days=2)
         start_date = end_date - timedelta(days=window_days)
 
-        regime_dates = self.runner.get_regime_dates(
-            asset, start_date, end_date, num_per_regime=num_runs, seed=seed
-        )
+        if regime_date_mode == "production":
+            if production_regime_pool_size is not None:
+                pr_pool = max(1, int(production_regime_pool_size))
+            else:
+                pr_pool = max(2500, int(num_runs) * 150)
+            regime_dates = self.runner.get_production_regime_dates(
+                asset,
+                frequency,
+                start_date,
+                end_date,
+                num_per_regime=num_runs,
+                pool_size=pr_pool,
+                seed=seed,
+            )
+        else:
+            regime_dates = self.runner.get_regime_dates(
+                asset, start_date, end_date, num_per_regime=num_runs, seed=seed
+            )
 
         regime_results = {}
         for rtype, dates in regime_dates.items():
@@ -99,7 +127,8 @@ class GridSearchTuner:
             "strategy": strategy.name,
             "asset": asset,
             "use_regimes": True,
-            "regime_results": regime_results
+            "regime_date_mode": regime_date_mode,
+            "regime_results": regime_results,
         }
 
     def _run_grid_search(

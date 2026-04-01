@@ -73,6 +73,29 @@ class BacktestReport:
             "per_frequency_rankings": freq_rankings,
         }
 
+    def ranked_strategies_for_asset_freq(
+        self,
+        scan_results: list[dict],
+        asset: str,
+        frequency: str,
+        top_k: int = 1,
+    ) -> list[dict]:
+        """
+        Strategies for one (asset, frequency), sorted by avg_score (lower is better for CRPS).
+
+        Used after a full scan to tune the top-K candidates with grid search (fairer than
+        tuning only #1 at default params while comparing at default params in the scan).
+        """
+        rows = [
+            r
+            for r in scan_results
+            if r.get("asset") == asset
+            and r.get("frequency") == frequency
+            and float(r.get("avg_score", float("inf"))) < float("inf")
+        ]
+        rows.sort(key=lambda r: float(r["avg_score"]))
+        return rows[: max(1, top_k)]
+
     def print_summary(self, scan_results: list[dict]) -> None:
         """Print a summary table to console."""
         rankings = self.generate_rankings(scan_results)

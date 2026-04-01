@@ -1,5 +1,6 @@
 # Regime-aware routing (ARCHITECTURE.md): Router (HFT/LFT) -> Regime Detector -> Strategy Selector.
-# Under each asset and frequency (high|low), keys are market regimes:
+# Under each asset and frequency (high|low), keys are market regimes (same *names* for crypto
+# high vs low; detector.py maps price data to these labels differently per frequency).
 # - crypto (BTC, ETH, SOL): bull | high_vol | ranging
 # - gold (XAU): trending | mean_reverting
 # - equity: market_open | overnight | earnings

@@ -18,6 +18,8 @@ from synth.miner.my_simulation import fetch_price_data
 from synth.miner.compute_score import cal_reward
 from synth.db.models import ValidatorRequest
 from synth.miner.regime import get_random_dates, scan_regime_dates
+from synth.miner.regimes.detector import detect_regime
+from synth.miner.strategies.base import REGIME_TYPES, get_asset_type
 from synth.simulation_input import SimulationInput
 from synth.utils.helpers import convert_prices_to_time_format
 from synth.validator.response_validation_v2 import validate_responses
@@ -29,6 +31,49 @@ def _get_prompt_config(frequency: str):
     if frequency == "high":
         return prompt_config.HIGH_FREQUENCY
     return prompt_config.LOW_FREQUENCY
+
+
+def _utc_iso_z(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+def _filter_price_before(prices: dict, ts_end: int) -> dict[str, float]:
+    return {k: float(v) for k, v in prices.items() if int(k) < ts_end}
+
+
+def _hist_ok_for_production(asset: str, frequency: str, n: int) -> bool:
+    at = get_asset_type(asset)
+    if at == "equity":
+        return True
+    if at == "gold":
+        return n >= 50
+    if at == "crypto":
+        return n >= (181 if frequency == "high" else 80)
+    return n >= 20
+
+
+def _build_hist_for_detect(
+    asset: str,
+    frequency: str,
+    d1: dict,
+    d5: dict,
+    ts_end: int,
+) -> dict[str, float]:
+    at = get_asset_type(asset)
+    if at == "equity":
+        return {}
+    if at == "gold":
+        src = d5 if len(d5) >= 50 else d1
+        return _filter_price_before(src, ts_end)
+    if at == "crypto":
+        if frequency == "high":
+            return _filter_price_before(d1, ts_end)
+        return _filter_price_before(d5, ts_end)
+    return {}
 
 
 class BacktestRunner:
@@ -198,6 +243,74 @@ class BacktestRunner:
             seed=seed,
         )
 
+    def get_production_regime_dates(
+        self,
+        asset: str,
+        frequency: str,
+        start_date: datetime,
+        end_date: datetime,
+        num_per_regime: int = 5,
+        pool_size: int = 2500,
+        seed: int = 42,
+    ) -> dict[str, list[datetime]]:
+        """
+        Bucket candidate dates using ``synth.miner.regimes.detector.detect_regime`` — same
+        taxonomy as runtime routing (crypto high vs low logic, gold BBW, equity session clock).
+
+        Requires 1m (and for low/crypto, 5m) price history before each evaluation time, same
+        spirit as ``run_single``.
+        """
+        cfg = _get_prompt_config(frequency)
+        inc = cfg.time_increment
+        length = cfg.time_length
+        at = get_asset_type(asset)
+        keys = list(REGIME_TYPES[at])
+        regimes: dict[str, list[datetime]] = {k: [] for k in keys}
+
+        h1 = fetch_price_data(asset, 60, only_load=True)
+        h5 = fetch_price_data(asset, 300, only_load=True)
+        d1 = (h1 or {}).get("1m", {}) if isinstance(h1, dict) else {}
+        d5 = (h5 or {}).get("5m", {}) if isinstance(h5, dict) else {}
+
+        if at != "equity" and not d1 and not d5:
+            print(
+                f"  ⚠ [production regimes] No price data for {asset}, empty buckets."
+            )
+            return regimes
+
+        candidates = get_random_dates(start_date, end_date, pool_size, seed)
+        print(
+            f"[ProductionRegime] {asset} × {frequency} — sampling up to {pool_size} dates "
+            f"into {len(keys)} buckets (detect_regime / strategies.yaml taxonomy)..."
+        )
+
+        for date in candidates:
+            if all(len(regimes[k]) >= num_per_regime for k in keys):
+                break
+            dt = (
+                date.replace(tzinfo=timezone.utc)
+                if date.tzinfo is None
+                else date.astimezone(timezone.utc)
+            )
+            ts_end = int(dt.timestamp())
+            hist = _build_hist_for_detect(asset, frequency, d1, d5, ts_end)
+            if not _hist_ok_for_production(asset, frequency, len(hist)):
+                continue
+            try:
+                res = detect_regime(asset, _utc_iso_z(dt), inc, length, hist)
+            except Exception as exc:
+                print(f"  ⚠ detect_regime skip @ {dt}: {exc}")
+                continue
+            label = str(res.regime).lower()
+            if label not in regimes:
+                continue
+            if len(regimes[label]) < num_per_regime:
+                regimes[label].append(dt)
+
+        for k in keys:
+            print(f"  -> Found {len(regimes[k])} {k} dates")
+        return regimes
+
     def run_benchmark(
         self,
         strategy: BaseStrategy,
@@ -267,68 +380,76 @@ class BacktestRunner:
         seed: int = 42,
         window_days: int = 30,
         skip_ensemble: bool = True,
+        pairs: Optional[list[tuple[str, str]]] = None,
     ) -> list[dict]:
         """
         Scan all compatible strategy × asset × frequency combinations.
 
-        Returns list of benchmark result dicts.
+        If ``pairs`` is set, only those (asset, frequency) tuples are scanned (e.g.
+        ``--scan-all-default``: low block then high block). If None, scans
+        ``assets × frequencies`` in nested order.
         """
         all_results = []
         total_combos = 0
 
-        for asset in assets:
-            for freq in frequencies:
-                strategies = registry.get_for_asset(asset)
-                if skip_ensemble:
-                    strategies = [
-                        s for s in strategies
-                        if s.name != "ensemble_weighted"
-                    ]
-                for strategy in strategies:
-                    if strategy.supports_frequency(freq):
-                        total_combos += 1
+        if pairs is not None:
+            iter_pairs = pairs
+        else:
+            iter_pairs = [(a, f) for a in assets for f in frequencies]
 
+        for asset, freq in iter_pairs:
+            strategies = registry.get_for_asset(asset)
+            if skip_ensemble:
+                strategies = [
+                    s for s in strategies
+                    if s.name != "ensemble_weighted"
+                ]
+            for strategy in strategies:
+                if strategy.supports_frequency(freq):
+                    total_combos += 1
+
+        n_assets = len({a for a, _ in iter_pairs})
+        n_freqs = len({f for _, f in iter_pairs})
         print(
             f"\n{'='*60}\n"
-            f"STRATEGY SCAN: {len(assets)} assets × {len(frequencies)} freqs "
-            f"= {total_combos} combinations\n"
+            f"STRATEGY SCAN: {n_assets} assets × {n_freqs} freqs "
+            f"→ {len(iter_pairs)} pairs = {total_combos} combinations\n"
             f"{'='*60}"
         )
 
         combo_idx = 0
-        for asset in assets:
-            for freq in frequencies:
-                strategies = registry.get_for_asset(asset)
-                if skip_ensemble:
-                    strategies = [
-                        s for s in strategies
-                        if s.name != "ensemble_weighted"
-                    ]
+        for asset, freq in iter_pairs:
+            strategies = registry.get_for_asset(asset)
+            if skip_ensemble:
+                strategies = [
+                    s for s in strategies
+                    if s.name != "ensemble_weighted"
+                ]
 
-                cfg = _get_prompt_config(freq)
-                fetch_price_data(asset, cfg.time_increment, only_load=True)
+            cfg = _get_prompt_config(freq)
+            fetch_price_data(asset, cfg.time_increment, only_load=True)
 
-                for strategy in strategies:
-                    if not strategy.supports_frequency(freq):
-                        continue
-                    combo_idx += 1
-                    print(
-                        f"\n[{combo_idx}/{total_combos}] "
-                        f"{strategy.name} × {asset} × {freq}"
-                    )
-                    result = self.run_benchmark(
-                        strategy,
-                        asset,
-                        freq,
-                        num_runs=num_runs,
-                        num_sims=num_sims,
-                        seed=seed,
-                        window_days=window_days,
-                    )
-                    all_results.append(result)
-                    print(
-                        f"  → avg {self.metric}: {result['avg_score']:.4f} "
-                        f"({result['successful_runs']}/{num_runs} OK)"
-                    )
+            for strategy in strategies:
+                if not strategy.supports_frequency(freq):
+                    continue
+                combo_idx += 1
+                print(
+                    f"\n[{combo_idx}/{total_combos}] "
+                    f"{strategy.name} × {asset} × {freq}"
+                )
+                result = self.run_benchmark(
+                    strategy,
+                    asset,
+                    freq,
+                    num_runs=num_runs,
+                    num_sims=num_sims,
+                    seed=seed,
+                    window_days=window_days,
+                )
+                all_results.append(result)
+                print(
+                    f"  → avg {self.metric}: {result['avg_score']:.4f} "
+                    f"({result['successful_runs']}/{num_runs} OK)"
+                )
 
         return all_results
