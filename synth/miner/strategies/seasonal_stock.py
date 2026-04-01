@@ -17,8 +17,8 @@ class SeasonalStockStrategy(BaseStrategy):
         "Intraday seasonality profile with GARCH simulation "
         "(designed for single-stock with strong intraday patterns)"
     )
-    supported_assets = ["NVDAX"]
-    supported_frequencies = ["low"]
+    supported_asset_types = ["equity"]
+    supported_regimes = ["market_open"]
     default_params = {
         "lookback_days": 20,
     }

@@ -25,8 +25,8 @@ class MarkovGarchJumpStrategy(BaseStrategy):
         "Regime 0 (sideway): low vol, rare jumps. "
         "Regime 1 (volatile): high vol, frequent jumps."
     )
-    supported_assets = ["SPYX", "BTC", "ETH", "SOL", "NVDAX", "TSLAX", "AAPLX", "GOOGLX"]
-    supported_frequencies = ["low", "high"]
+    supported_asset_types = ["crypto", "equity"]
+    supported_regimes = []
 
     # Bộ tham số mặc định (Dành cho Crypto hoặc SPYX)
     default_params = {

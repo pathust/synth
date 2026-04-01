@@ -19,8 +19,8 @@ class GarchV2Strategy(BaseStrategy):
         "GARCH(1,1) with asset-adaptive lookback window and "
         "variance-targeting initialization"
     )
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {}  # uses get_optimal_config() internally
     param_grid = {
         "lookback_days": [7, 14, 30, 45, 60],

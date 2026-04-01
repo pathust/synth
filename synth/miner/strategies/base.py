@@ -3,7 +3,7 @@ base.py — Abstract base class for all simulation strategies.
 
 Every strategy must subclass BaseStrategy and implement `simulate()`.
 The registry uses the class-level attributes to filter strategies
-by asset and frequency.
+by asset_type and regime, following the Asset × Regime architecture.
 """
 
 from __future__ import annotations
@@ -14,20 +14,35 @@ from typing import Optional
 import numpy as np
 
 
-# ─────────────────────────────────────────────────────────────────────
-# StrategyConfig: type-safe configuration for deploying a strategy
-# ─────────────────────────────────────────────────────────────────────
+ASSET_TYPES = ["crypto", "gold", "equity"]
+REGIME_TYPES = {
+    "crypto": ["bull", "high_vol", "ranging"],
+    "gold": ["mean_reverting", "trending"],
+    "equity": ["market_open", "overnight", "earnings"],
+}
+
+CRYPTO_ASSETS = ["BTC", "ETH", "SOL"]
+GOLD_ASSETS = ["XAU"]
+EQUITY_ASSETS = ["SPYX", "NVDAX", "TSLAX", "AAPLX", "GOOGLX"]
+
+
+def get_asset_type(asset: str) -> str:
+    if asset in CRYPTO_ASSETS:
+        return "crypto"
+    elif asset in GOLD_ASSETS:
+        return "gold"
+    elif asset in EQUITY_ASSETS:
+        return "equity"
+    return "crypto"
+
 
 @dataclass
 class StrategyConfig:
     """
-    Configuration for deploying a strategy to a specific asset/frequency.
-
-    Used in config/asset_strategy_config.py to define production mappings.
-    Also serves as the output of deploy/exporter.py.
+    Configuration for deploying a strategy to a specific asset_type/regime.
 
     Attributes:
-        strategy_name: Registry name of the strategy (e.g., "garch_v4").
+        strategy_name: Registry name of the strategy (e.g., "garch_v2").
         weight: Ensemble weight in [0, 1]. Weights are normalized at runtime.
         params: Override parameters passed as **kwargs to strategy.simulate().
     """
@@ -40,21 +55,19 @@ class StrategyConfig:
             raise ValueError(f"Weight must be in [0, 1], got {self.weight}")
 
     def to_tuple(self) -> tuple[str, float]:
-        """Legacy compat: convert to (name, weight) tuple."""
         return (self.strategy_name, self.weight)
 
 
 class BaseStrategy(ABC):
     """Base class for all price simulation strategies."""
 
-    # --- Must be set by subclasses ---
-    name: str = ""                          # e.g. "garch_v2"
-    version: str = "1.0"                    # Strategy version for tracking
-    description: str = ""                   # Human-readable description
-    supported_assets: list[str] = []        # e.g. ["BTC","ETH"]; empty = all
-    supported_frequencies: list[str] = []   # ["high","low"]; empty = all
-    default_params: dict = {}               # Default hyperparameters
-    param_grid: dict = {}                   # Param ranges for GridSearch
+    name: str = ""
+    version: str = "1.0"
+    description: str = ""
+    supported_asset_types: list[str] = []
+    supported_regimes: list[str] = []
+    default_params: dict = {}
+    param_grid: dict = {}
 
     @abstractmethod
     def simulate(
@@ -84,27 +97,28 @@ class BaseStrategy(ABC):
         ...
 
     def get_param_grid(self) -> dict:
-        """Return parameter grid for tuning. Override to customize."""
         return self.param_grid
 
     def get_default_params(self) -> dict:
-        """Return default parameters. Override to customize."""
         return self.default_params.copy()
 
     def supports_asset(self, asset: str) -> bool:
-        """Check if this strategy supports the given asset."""
-        if not self.supported_assets:
-            return True  # empty list = supports all
-        return asset in self.supported_assets
+        if not self.supported_asset_types:
+            return True
+        asset_type = get_asset_type(asset)
+        return asset_type in self.supported_asset_types
+
+    def supports_regime(self, regime: str) -> bool:
+        if not self.supported_regimes:
+            return True
+        return regime in self.supported_regimes
 
     def supports_frequency(self, frequency: str) -> bool:
-        """Check if this strategy supports the given frequency label."""
-        if not self.supported_frequencies:
-            return True  # empty list = supports all
-        return frequency in self.supported_frequencies
+        return True
 
     def __repr__(self) -> str:
         return (
             f"<{self.__class__.__name__} name='{self.name}' "
-            f"assets={self.supported_assets} freq={self.supported_frequencies}>"
+            f"asset_types={self.supported_asset_types} "
+            f"regimes={self.supported_regimes}>"
         )

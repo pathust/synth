@@ -99,18 +99,13 @@ def _inspect_paths(out: Any) -> tuple[bool, dict[str, Any]]:
 
 
 class DynamicRouterV2Strategy(BaseStrategy):
-    """
-    Smart router: 1H price-action bias from 61×1m bars per hour (v2 detector),
-    then dispatch to an empirical simulator by asset + bias.
-    """
-
     name = "dynamic_router_v2"
     description = (
         "Routes dynamically using v2 1h pattern detection "
         "(sqrt-time expected range, flash-wick filters)"
     )
-    supported_assets = []
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
 
     # Routing table for 5 Precog patterns (continuation/reversal/indecision)
     default_routing = {

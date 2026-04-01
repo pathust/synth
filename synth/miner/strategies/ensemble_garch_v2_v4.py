@@ -23,9 +23,8 @@ class EnsembleGarchV2V4Strategy(BaseStrategy):
         "Ensemble of garch_v2 (asset-adaptive GARCH) and "
         "garch_v4 (regime-aware GJR-GARCH + skew-t/FHS) with configurable weights"
     )
-    supported_assets: list[str] = []  # all assets
-    supported_frequencies: list[str] = ["high", "low"]
-    # Only expose weights; base_strategy_names cố định là garch_v2 + garch_v4.
+    supported_asset_types = []
+    supported_regimes = []
     default_params: dict = {
         "weights": [0.5, 0.5],
     }

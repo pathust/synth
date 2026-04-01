@@ -16,8 +16,8 @@ from synth.miner.core.garch_simulator import (
 class GarchV1Strategy(BaseStrategy):
     name = "garch_v1"
     description = "GARCH(p,q) with Student-t innovations (original simulator)"
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {
         "mean": "Constant",
         "p": 1,

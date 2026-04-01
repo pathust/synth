@@ -55,18 +55,13 @@ def _get_production_fn_chain(asset: str) -> list[tuple]:
 
 
 class ProductionBaselineStrategy(BaseStrategy):
-    """
-    Wraps the current production generate_simulations() logic.
-    Uses the exact same asset-routing and fallback chain.
-    """
-
     name = "production_baseline"
     description = (
         "Current production code (generate_simulations) — "
         "garch_v2 for crypto, weekly_seasonal for stocks/XAU"
     )
-    supported_assets = []  # all
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {}
 
     def simulate(

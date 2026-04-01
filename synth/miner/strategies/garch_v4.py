@@ -19,8 +19,8 @@ class GarchV4Strategy(BaseStrategy):
         "GJR-GARCH with Skew Student-t, FHS and regime drift "
         "(Z-Score momentum)"
     )
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {
         "lookback_days": 25,
         "momentum_weight": 0.5,

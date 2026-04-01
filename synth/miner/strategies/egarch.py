@@ -23,8 +23,8 @@ class EgarchStrategy(BaseStrategy):
         "Exponential GARCH — models asymmetric volatility in log-space, "
         "capturing leverage effects where drops cause higher vol than rallies"
     )
-    supported_assets = ["BTC", "ETH", "SOL", "XAU"]
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["crypto"]
+    supported_regimes = []
     default_params = {
         "p": 1,
         "q": 1,

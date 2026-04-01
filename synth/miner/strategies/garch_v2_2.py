@@ -17,8 +17,8 @@ class GarchV2_2Strategy(BaseStrategy):
     description = (
         "GARCH(1,1) with asset-adaptive optimal config specialized for HFT v2.2"
     )
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {}  # uses get_optimal_config() internally
     param_grid = {
         "lookback_days": [2.5, 3.0, 3.9],

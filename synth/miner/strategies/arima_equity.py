@@ -5,17 +5,13 @@ from synth.miner.strategies.base import BaseStrategy
 from synth.miner.core.arima_equity_simulator import simulate_arima_us_equity_exact
 
 class ArimaEquityStrategy(BaseStrategy):
-    """
-    Wraps the US Equity Exact Hours simulator utilizing an ARIMA(1,0,1) backbone.
-    Designed exclusively for stocks to capture intraday momentum while ensuring perfect CRPS on weekends.
-    """
     name = "arima_equity"
     description = (
         "Strictly enforces US Market hours (09:30-16:00 ET). "
         "Intraday prices are modeled using an autoregressive moving average process (ARIMA 1,0,1)."
     )
-    supported_assets = ["NVDAX", "TSLAX", "AAPLX", "GOOGLX", "SPYX"]
-    supported_frequencies = ["low", "high"]
+    supported_asset_types = ["equity"]
+    supported_regimes = ["market_open", "overnight"]
     default_params = {}
 
     def simulate(

@@ -336,7 +336,7 @@ class BacktestRunner:
     ) -> list[dict]:
         """
         Scan all compatible strategy × asset × frequency combinations.
-        
+
         Returns list of benchmark result dicts.
         """
         all_results = []
@@ -344,7 +344,7 @@ class BacktestRunner:
 
         for asset in assets:
             for freq in frequencies:
-                strategies = registry.get_for_asset(asset, freq)
+                strategies = registry.get_for_asset(asset)
                 if skip_ensemble:
                     strategies = [
                         s for s in strategies
@@ -362,14 +362,13 @@ class BacktestRunner:
         combo_idx = 0
         for asset in assets:
             for freq in frequencies:
-                strategies = registry.get_for_asset(asset, freq)
+                strategies = registry.get_for_asset(asset)
                 if skip_ensemble:
                     strategies = [
                         s for s in strategies
                         if s.name != "ensemble_weighted"
                     ]
 
-                # Preload data for this asset + frequency
                 cfg = _get_prompt_config(freq)
                 fetch_price_data(asset, cfg.time_increment, only_load=True)
 

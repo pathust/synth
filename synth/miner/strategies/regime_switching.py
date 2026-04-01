@@ -29,8 +29,8 @@ class RegimeSwitchingStrategy(BaseStrategy):
         "Markov Regime-Switching GARCH — detects market regime "
         "(trending/sideways) and adapts volatility model accordingly"
     )
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {
         "lookback_days": 30,
         "regime_method": "er",  # "er" or "bbw"

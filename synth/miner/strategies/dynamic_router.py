@@ -6,14 +6,10 @@ from synth.miner.strategies.pattern_detector import detect_pattern
 from synth.miner.entry import _get_simulate_fn
 
 class DynamicRouterStrategy(BaseStrategy):
-    """
-    A smart router strategy that detects the current 1-hour candle pattern (using Precog rules)
-    and routes the simulation down the best empirical pipeline for that specific asset and condition.
-    """
     name = "dynamic_router"
     description = "Routes dynamically based on Precog 1h pattern detection (bullish/bearish/neutral)"
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     
     # Default routing rules found from our pattern backtest
     default_routing = {

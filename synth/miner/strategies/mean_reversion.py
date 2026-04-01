@@ -53,8 +53,8 @@ class MeanReversionStrategy(BaseStrategy):
         "Ornstein-Uhlenbeck mean-reversion process — prices revert toward "
         "a long-run mean, good for range-bound assets"
     )
-    supported_assets = ["XAU", "SPYX", "BTC", "ETH", "SOL"]
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["gold"]
+    supported_regimes = ["mean_reverting"]
     default_params = {
         "lookback_days": 30,
         "half_life_override": None,  # if set, overrides fitted θ

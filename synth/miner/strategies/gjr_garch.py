@@ -22,8 +22,8 @@ class GjrGarchStrategy(BaseStrategy):
         "GJR-GARCH — threshold volatility model with leverage indicator "
         "for asymmetric volatility response to positive/negative shocks"
     )
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["equity", "gold"]
+    supported_regimes = []
     default_params = {
         "lookback_days": 45,
         "mean_model": "Constant",

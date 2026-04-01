@@ -19,8 +19,8 @@ class WeeklySeasonalStrategy(BaseStrategy):
         "Weekly seasonality (day-of-week + hour) with GJR-GARCH "
         "for stocks and XAU with strong day-of-week patterns"
     )
-    supported_assets = ["TSLAX", "AAPLX", "GOOGLX", "SPYX", "NVDAX", "XAU"]
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["equity", "gold"]
+    supported_regimes = ["market_open", "overnight"]
     default_params = {
         "lookback_days": 60,
     }

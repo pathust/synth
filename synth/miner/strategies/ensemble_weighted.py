@@ -20,8 +20,8 @@ class EnsembleWeightedStrategy(BaseStrategy):
         "Adaptive weighted ensemble — blends paths from multiple base "
         "strategies with configurable weights to diversify model risk"
     )
-    supported_assets = []  # all assets
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = []
+    supported_regimes = []
     default_params = {
         # base_strategy_names will be resolved at runtime
         "base_strategy_names": ["garch_v1", "garch_v2"],

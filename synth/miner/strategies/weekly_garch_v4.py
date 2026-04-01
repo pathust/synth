@@ -5,15 +5,10 @@ from synth.miner.strategies.base import BaseStrategy
 from synth.miner.core.stock_simulator_v3 import simulate_weekly_garch_v4
 
 class WeeklyGarchV4Strategy(BaseStrategy):
-    """
-    Weekly Seasonality combined with advanced GARCH v4 configuration 
-    (skewstudent + asymmetric shocks), providing precision drift and variance
-    masking to perfectly bypass weekends/nights with 0 variance, avoiding CRPS penalties.
-    """
     name = "weekly_garch_v4"
     description = "GARCH V4 blended with Weekly Empirical Seasonality for specific stock hours."
-    supported_assets = ["NVDAX", "TSLAX", "AAPLX", "GOOGLX", "SPYX"]
-    supported_frequencies = ["low"]
+    supported_asset_types = ["equity"]
+    supported_regimes = ["market_open", "overnight"]
     default_params = {}
 
     def simulate(self, prices_dict: dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs) -> np.ndarray:

@@ -61,8 +61,8 @@ class JumpDiffusionStrategy(BaseStrategy):
         "Merton Jump-Diffusion — GBM with Poisson jumps for capturing "
         "sudden price shocks (flash crashes, earnings, macro events)"
     )
-    supported_assets = ["BTC", "ETH", "SOL", "TSLAX", "NVDAX"]
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["crypto", "equity"]
+    supported_regimes = []
     default_params = {
         "lookback_days": 30,
         "jump_intensity_override": None,

@@ -19,8 +19,8 @@ class HarRvStrategy(BaseStrategy):
         "HAR-RV (Heterogeneous Autoregressive Realized Variance) "
         "combined with GARCH for volatility forecasting"
     )
-    supported_assets = ["BTC", "ETH", "SOL", "XAU"]
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["crypto"]
+    supported_regimes = []
     default_params = {
         "lookback_days": 30,
     }
