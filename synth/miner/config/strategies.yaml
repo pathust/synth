@@ -1,0 +1,139 @@
+version: "2.0"
+updated_at: "2026-03-31T10:00:00Z"
+fallback_chain:
+  L1_timeout_ms: 600
+  L2_model: "garch_v2"
+  L3_model: "garch_v4"
+routing:
+  BTC:
+    high:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "dynamic_router"
+          weight: 1.0
+          params: {}
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "dynamic_router"
+          weight: 0.6
+          params: {}
+        - name: "garch_v2_2"
+          weight: 0.4
+          params: {}
+  ETH:
+    high:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "dynamic_router"
+          weight: 1.0
+          params: {}
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "dynamic_router"
+          weight: 0.6
+          params: {}
+        - name: "regime_switching"
+          weight: 0.4
+          params: {}
+  XAU:
+    high:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "garch_v4_1"
+          weight: 1.0
+          params: {}
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "jump_diffusion"
+          weight: 0.4
+          params: {}
+        - name: "garch_v4_1"
+          weight: 0.3
+          params: {}
+        - name: "weekly_regime_switching"
+          weight: 0.3
+          params: {}
+  SOL:
+    high:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "dynamic_router"
+          weight: 1.0
+          params: {}
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "dynamic_router"
+          weight: 0.6
+          params: {}
+        - name: "arima_equity"
+          weight: 0.4
+          params: {}
+  NVDAX:
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "arima_equity"
+          weight: 0.4
+          params: {}
+        - name: "garch_v4_1"
+          weight: 0.3
+          params: {}
+        - name: "markov_garch_jump"
+          weight: 0.3
+          params: {}
+  TSLAX:
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "weekly_garch_v4"
+          weight: 0.4
+          params: {}
+        - name: "garch_v4"
+          weight: 0.3
+          params: {}
+        - name: "regime_switching"
+          weight: 0.3
+          params: {}
+  AAPLX:
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "markov_garch_jump"
+          weight: 0.4
+          params: {}
+        - name: "regime_switching"
+          weight: 0.3
+          params: {}
+        - name: "garch_v4_1"
+          weight: 0.3
+          params: {}
+  GOOGLX:
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "weekly_regime_switching"
+          weight: 0.4
+          params: {}
+        - name: "garch_v4_1"
+          weight: 0.3
+          params: {}
+        - name: "regime_switching"
+          weight: 0.3
+          params: {}
+  SPYX:
+    low:
+      ensemble_method: "weighted_average"
+      models:
+        - name: "weekly_regime_switching"
+          weight: 0.4
+          params: {}
+        - name: "garch_v4"
+          weight: 0.3
+          params: {}
+        - name: "arima_equity"
+          weight: 0.3
+          params: {}

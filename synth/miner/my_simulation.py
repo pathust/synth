@@ -20,14 +20,19 @@ Flow:
 import numpy as np
 import datetime
 import traceback
+import json
+import os
 from typing import Any, Optional, Callable
 
 from synth.miner.data_handler import DataHandler
+from synth.miner.price_aggregation import aggregate_1m_to_5m
 from synth.miner.constants import ASSETS_PERIODIC_FETCH_PRICE_DATA
 
 # Global DataHandler instance (shared across simulation calls)
 # sn50 L8
 data_handler = DataHandler()
+OVERFLOW_LOG_DIR = "synth/miner/logs/overflow_requests"
+os.makedirs(OVERFLOW_LOG_DIR, exist_ok=True)
 
 
 def iso_to_timestamp(iso_string: str) -> int:
@@ -68,7 +73,6 @@ def fetch_price_data(asset: str, time_increment: int, only_load: bool = False):
         if not has_5m:
             loaded_1m = data_handler.load_price_data(asset, "1m")
             if loaded_1m and "1m" in loaded_1m and loaded_1m["1m"]:
-                from synth.miner.backtest_data_loader import aggregate_1m_to_5m
                 prices_5m = aggregate_1m_to_5m(loaded_1m["1m"])
                 if prices_5m:
                     hist_price_data = {"5m": prices_5m}
@@ -129,6 +133,11 @@ def fetch_price_data(asset: str, time_increment: int, only_load: bool = False):
     return hist_price_data
 
 
+from synth.miner.data.dataloader import UnifiedDataLoader
+
+# Instantiate single dataloader for all simulations
+_unified_loader = UnifiedDataLoader()
+
 def simulate_crypto_price_paths(
     current_price: float,
     asset: str,
@@ -142,67 +151,120 @@ def simulate_crypto_price_paths(
     **kwargs
 ) -> np.ndarray:
     """
-    Load historical price data, filter by start_time, and run simulation.
-    sn50 L84-125
-    
-    This is the main dispatcher: it loads the data and delegates to
-    the specific simulation function (GARCH, HAR-RV, APARCH, etc.).
-    
-    Args:
-        current_price: Current asset price (may not be used by all simulate_fn)
-        asset: Asset name
-        start_time: ISO format start time (e.g., "2025-11-26T16:19:00+00:00")
-        time_increment: Time increment in seconds
-        time_length: Total simulation time in seconds
-        num_simulations: Number of simulation paths
-        simulate_fn: Callable that performs the actual simulation
-        max_data_points: Maximum historical data points to use
-        seed: Random seed for reproducibility
-    
-    Returns:
-        np.ndarray: Simulated price paths, shape (n_sims, steps+1)
+    Load historical price data robustly using UnifiedDataLoader, 
+    and dispatch to the specified strategy simulation function.
     """
-    time_frame = "1m" if time_increment == 60 else ("5m" if time_increment == 300 else str(time_increment))
-
-    only_load = True  # Force only load for backtesting
-    hist_price_data = fetch_price_data(asset, time_increment, only_load=only_load)
-
-    if not hist_price_data or time_frame not in hist_price_data:
-        print(f"[ERROR] No historical data available for {asset}/{time_frame}. Cannot simulate.")
-        return None
-
-    prices_dict = hist_price_data[time_frame]
-
-    # Filter: only use prices BEFORE start_time
-    # This ensures the simulation doesn't "cheat" by using future data
-    start_timestamp = iso_to_timestamp(start_time)
-    filter_prices_dict = {
-        k: v for k, v in prices_dict.items() if int(k) < start_timestamp
-    }
-
-    # Sort ascending and limit to max_data_points
-    sorted_items = sorted(filter_prices_dict.items(), key=lambda x: int(x[0]))
-    if max_data_points is not None:
-        filter_prices_dict = dict[Any, Any](sorted_items[-max_data_points:])
-    else:
-        filter_prices_dict = dict(sorted_items)
+    # Force 30 days of window data by default to give enough context for models like GARCH
+    window_days = 30
+    
+    # 1. Fetch strictly OOS dictionary
+    filter_prices_dict = _unified_loader.get_historical_dict(asset, start_time, window_days)
 
     if not filter_prices_dict:
-        print(f"[ERROR] No historical prices before start_time={start_time} for {asset}. Total={len(prices_dict)}, filtered=0")
+        print(f"[ERROR] No historical prices before start_time={start_time} for {asset} within {window_days} days.")
         return None
+
+    # Limit to max_data_points if requested (ascending order guaranteed by dataloader)
+    if max_data_points is not None:
+        items = list(filter_prices_dict.items())
+        if len(items) > max_data_points:
+            filter_prices_dict = dict(items[-max_data_points:])
 
     print(
         f"[INFO] Simulating {asset} with {simulate_fn.__name__}: "
-        f"total_hist={len(prices_dict)}, filtered={len(filter_prices_dict)}, "
-        f"n_sims={num_simulations}, seed={seed}")
-
-    result = simulate_fn(
-        filter_prices_dict,
-        asset=asset,
-        time_increment=time_increment,
-        time_length=time_length,
-        n_sims=num_simulations,
-        seed=seed,
-        **kwargs
+        f"filtered={len(filter_prices_dict)}, "
+        f"n_sims={num_simulations}, seed={seed}"
     )
+
+    def _run_fn(fn: Callable):
+        return fn(
+            filter_prices_dict,
+            asset=asset,
+            time_increment=time_increment,
+            time_length=time_length,
+            n_sims=num_simulations,
+            seed=seed,
+            **kwargs,
+        )
+
+    result = _run_fn(simulate_fn)
+
+    # Detect numeric explosion/underflow and log request context for debugging.
+    try:
+        arr = np.asarray(result, dtype=float)
+        if arr.ndim == 2 and arr.size > 0:
+            finite_mask = np.isfinite(arr)
+            has_nonfinite = not np.all(finite_mask)
+            finite_vals = arr[finite_mask]
+            max_abs = float(np.max(np.abs(finite_vals))) if finite_vals.size > 0 else float("inf")
+            min_val = float(np.min(finite_vals)) if finite_vals.size > 0 else float("nan")
+            # Heuristic overflow guard:
+            # - inf/nan present
+            # - any non-positive price
+            # - or absurd magnitude
+            exploded = has_nonfinite or min_val <= 0.0 or max_abs > 1e12
+            if exploded:
+                first_ts = next(iter(filter_prices_dict.keys()), None)
+                last_ts = next(reversed(filter_prices_dict.keys()), None) if filter_prices_dict else None
+                payload = {
+                    "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                    "asset": asset,
+                    "start_time": start_time,
+                    "time_increment": time_increment,
+                    "time_length": time_length,
+                    "num_simulations": num_simulations,
+                    "seed": seed,
+                    "simulate_fn": getattr(simulate_fn, "__name__", str(simulate_fn)),
+                    "history_points": len(filter_prices_dict),
+                    "history_first_ts": first_ts,
+                    "history_last_ts": last_ts,
+                    "has_nonfinite": has_nonfinite,
+                    "min_finite_price": min_val,
+                    "max_abs_finite_price": max_abs,
+                    "sample_first_path_head": arr[0, : min(10, arr.shape[1])].tolist(),
+                }
+                day = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+                log_path = os.path.join(OVERFLOW_LOG_DIR, f"overflow_{day}.jsonl")
+                with open(log_path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+                print(
+                    f"[OVERFLOW] {asset} {simulate_fn.__name__} start={start_time} "
+                    f"nonfinite={has_nonfinite} min={min_val:.6g} max_abs={max_abs:.6g} -> {log_path}"
+                )
+                # Auto-fallback: regenerate using garch_v2_1 for stability
+                if getattr(simulate_fn, "__name__", "") != "simulate_single_price_path_with_garch":
+                    try:
+                        from synth.miner.core.grach_simulator_v2_1 import (
+                            simulate_single_price_path_with_garch as _fallback_garch_v2_1,
+                        )
+                        print(
+                            f"[OVERFLOW] Retrying with fallback garch_v2_1 for "
+                            f"{asset} start={start_time}"
+                        )
+                        fb_result = _fallback_garch_v2_1(
+                            filter_prices_dict,
+                            asset=asset,
+                            time_increment=time_increment,
+                            time_length=time_length,
+                            n_sims=num_simulations,
+                            seed=seed,
+                        )
+                        fb_arr = np.asarray(fb_result, dtype=float)
+                        fb_ok = (
+                            fb_arr.ndim == 2
+                            and fb_arr.size > 0
+                            and np.all(np.isfinite(fb_arr))
+                            and float(np.min(fb_arr)) > 0.0
+                            and float(np.max(np.abs(fb_arr))) <= 1e12
+                        )
+                        if fb_ok:
+                            print("[OVERFLOW] Fallback garch_v2_1 succeeded.")
+                            result = fb_result
+                        else:
+                            print("[OVERFLOW] Fallback garch_v2_1 still unstable; keeping original output.")
+                    except Exception as fb_e:
+                        print(f"[OVERFLOW] Fallback garch_v2_1 failed: {fb_e}")
+    except Exception as e:
+        print(f"[OVERFLOW-LOG-WARN] Failed to inspect simulation output: {e}")
+
     return result

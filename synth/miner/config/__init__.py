@@ -1,0 +1,24 @@
+"""
+config/ — Centralized configuration for the miner module.
+
+Replaces hardcoded strategy-asset mappings with structured StrategyConfig objects.
+"""
+
+from synth.miner.config.asset_strategy_config import (
+    PRODUCTION_CONFIG,
+    DEFAULT_FALLBACK_CHAIN,
+    get_strategy_list,
+)
+from synth.miner.config.strategy_store import StrategyStore, get_strategy_store
+from synth.miner.config.defaults import ENSEMBLE_TOP_N, TRIM_LOWER, TRIM_UPPER
+
+__all__ = [
+    "PRODUCTION_CONFIG",
+    "DEFAULT_FALLBACK_CHAIN",
+    "get_strategy_list",
+    "StrategyStore",
+    "get_strategy_store",
+    "ENSEMBLE_TOP_N",
+    "TRIM_LOWER",
+    "TRIM_UPPER",
+]

@@ -11,7 +11,10 @@ from bittensor_wallet import Keypair, Wallet
 import httpx
 from pydantic import ValidationError
 from synth.utils.logging import print_execution_time
-import uvloop
+try:
+    import uvloop
+except Exception:
+    uvloop = None
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -23,7 +26,8 @@ from tenacity import (
 
 from synth.protocol import Simulation
 
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+if uvloop is not None:
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 _ERROR_MAPPINGS: List[Tuple[Type[Exception], Tuple[Union[str, None], str]]] = [
     # aiohttp server‐side connection issues
@@ -230,9 +234,7 @@ class SynthDendrite(bt.Dendrite):
 
         finally:
             self._log_incoming_response(synapse)
-
-            # Return the updated synapse object after deserializing if requested
-            return synapse
+        return synapse
 
     async def _query_all_axons(
         self,
@@ -309,9 +311,7 @@ class SynthDendrite(bt.Dendrite):
 
         finally:
             self._log_incoming_response(synapse)
-
-            # Return the updated synapse object after deserializing if requested
-            return synapse
+        return synapse
 
     @retry(
         stop=stop_after_attempt(3),

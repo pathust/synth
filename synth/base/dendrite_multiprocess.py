@@ -11,7 +11,10 @@ from itertools import repeat
 import bittensor as bt
 from bittensor.core.settings import version_as_int
 import httpx
-import uvloop
+try:
+    import uvloop
+except Exception:
+    uvloop = None
 
 
 from synth.base.dendrite import process_error_message
@@ -207,8 +210,7 @@ async def call(
         bt.logging.trace(
             f"dendrite | <-- | {synapse.get_total_size()} B | {synapse.name} | {synapse.axon.hotkey} | {synapse.axon.ip}:{str(synapse.axon.port)} | {synapse.dendrite.status_code} | {synapse.dendrite.status_message}"
         )
-
-        return [synapse.simulation_output, synapse.dendrite.process_time]
+    return [synapse.simulation_output, synapse.dendrite.process_time]
 
 
 async def worker(
@@ -359,8 +361,8 @@ def sync_forward_multiprocess(
     return results
 
 
-# Set the event loop policy to use uvloop for better performance
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+if uvloop is not None:
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 # Setup logging filter to ignore unwanted logs
 setup_log_filter("Unexpected header key encountered")

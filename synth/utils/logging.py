@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import inspect
 import os
 import logging
 from logging.handlers import RotatingFileHandler
@@ -173,7 +174,7 @@ def print_execution_time(func):
         )
         return result
 
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         return async_wrapper
     else:
         return sync_wrapper

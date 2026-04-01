@@ -49,6 +49,16 @@ class GjrGarchStrategy(BaseStrategy):
         params = self.get_default_params()
         params.update(kwargs)
 
+        # ETH high-frequency (1m): rút lookback để phản ứng nhanh với flash dump/pump.
+        # Cho phép kwargs tiếp tục ghi đè nếu caller truyền tường minh.
+        if asset.upper() == "ETH" and time_increment <= 60:
+            params["lookback_days"] = 7
+            params["mean_model"] = "Zero"
+            if "lookback_days" in kwargs:
+                params["lookback_days"] = kwargs["lookback_days"]
+            if "mean_model" in kwargs:
+                params["mean_model"] = kwargs["mean_model"]
+
         if seed is not None:
             np.random.seed(seed)
 

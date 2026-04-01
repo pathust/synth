@@ -25,7 +25,6 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
     
 
     is_crypto = asset.lower() not in ["xau"]
-    is_high_freq = time_increment <= 60  # 1 phút
 
     regime_er = regime_info["er"]
     regime_bbw = regime_info["bbw"]
@@ -33,7 +32,8 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
         return get_stock_refined_config(asset, time_increment, regime_bbw)
 
     regime_for_asset = regime_er if is_crypto else regime_bbw
-    
+
+    asset_upper = asset.upper()
     config = {
         # "mean_model": "Zero",  # Luôn dùng Zero cho high-freq để giảm nhiễu
         "dist": "StudentsT",   # Bắt buộc để bắt đuôi dày (Fat-tails)
@@ -44,20 +44,19 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
         "grach_o": 0
     }
 
-    # --- Tinh chỉnh Cửa sổ Lịch sử (Lookback Window) ---
-    if is_high_freq: # Task 1h (1m steps)
-        # Cần phản ứng cực nhanh, chỉ nhìn quá khứ rất gần
-        if is_crypto:
-            config["lookback_days"] = 7   # 7 ngày dữ liệu 1m (~10k nến)
-        else: # XAU
-            config["lookback_days"] = 14  # 14 ngày dữ liệu 1m
-    else: # Task 24h (5m steps)
-        # Cần cân bằng giữa độ nhạy và độ ổn định
-        if is_crypto:
-            config["lookback_days"] = 45  # 45 ngày gần nhất
-        else: # XAU
-            config["lookback_days"] = 90
-    
+    # Cửa sổ lookback theo từng đồng (đồng bộ garch_simulator_v2_2.get_optimal_config)
+    ti = time_increment
+    if asset_upper == "BTC":
+        config["lookback_days"] = 3.0 if ti <= 60 else 30.0
+    elif asset_upper == "ETH":
+        config["lookback_days"] = 3.0 if ti <= 60 else 30.0
+    elif asset_upper == "SOL":
+        config["lookback_days"] = 2.5 if ti <= 60 else 20.0
+    elif asset_upper == "XAU":
+        config["lookback_days"] = 3.9 if ti <= 60 else 30.0
+    else:
+        config["lookback_days"] = 3.0
+
     if asset.lower() in ["xau"]:
         config["min_nu"] = 10.0
         if regime_er["type"] == REGIME_TYPE.SIDEWAYS:
@@ -84,7 +83,6 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
 
     elif asset.lower() in ["sol"]:
         config["grach_o"] = 1
-        config["lookback_days"] = 7 if is_high_freq else 25 # SOL thay đổi trend rất nhanh
         config["min_nu"] = 4.5       # Cho phép đuôi dày (fat tails)
         
         # if regime_for_asset["type"] == REGIME_TYPE.TRENDING:
@@ -102,11 +100,28 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
             config["mean_model"] = "Zero"
 
     elif asset.lower() in ["btc", "eth"]:
-        config["min_nu"] = 6.0
+        # 1. Bật GJR-GARCH để bắt hiệu ứng hoảng loạn (Giá giảm -> Vol tăng mạnh hơn giá tăng)
+        config["grach_o"] = 1
+
+        # 2. Mở khóa đuôi siêu béo để hấp thụ Flash Crash/Pump
+        config["min_nu"] = 4.0
+
+        # 3. Kéo dài lookback để pha loãng nhiễu từ các cú Shock gần nhất
+        if ti <= 60:
+            config["lookback_days"] = 5.0
+
+        # 4. Điều tiết cực đoan qua Regime
         if regime_for_asset["type"] == REGIME_TYPE.SIDEWAYS:
-            config["vol_multiplier"] = 0.95
-        else:
-            config["vol_multiplier"] = 1.0
+            config["vol_multiplier"] = 0.90
+            config["mean_model"] = "Zero"  # Đi ngang thì không cần đoán hướng
+
+        elif regime_for_asset["type"] == REGIME_TYPE.TRENDING:
+            config["vol_multiplier"] = 0.95  # Hãm bớt vol lại để tránh bung phễu CRPS sau cú sập/bơm
+            config["mean_model"] = "Zero"  # Ép drift về 0 ở khung HIGH để tránh đâm/vút quá xa do dư chấn
+
+        else:  # Trạng thái SHOCK (Cực kỳ hỗn loạn)
+            config["vol_multiplier"] = 0.85  # Hãm cực mạnh dải vol vì eps_prev đang rất khổng lồ
+            config["mean_model"] = "Zero"
 
     return config
 
@@ -131,8 +146,8 @@ def get_stock_refined_config(asset: str, time_increment: int, regime: dict) -> d
     # 🏛️ 1. SPYX (S&P 500 Index) - Low Volatility
     # ==========================================
     if asset == "SPYX":
-        # Index cực kỳ ổn định, lookback dài để lấy trend chủ đạo
-        config["lookback_days"] = 20 if is_high_freq else 90
+        # Đồng bộ v2_2: SPYX low — lookback 15 ngày
+        config["lookback_days"] = 15.0
         
         # Nếu thị trường đang nén (hoặc ngoài giờ giao dịch)
         if regime["is_squeeze"]:
@@ -147,8 +162,7 @@ def get_stock_refined_config(asset: str, time_increment: int, regime: dict) -> d
     # 🚀 2. NVDAX, TSLAX (High Growth/Vol)
     # ==========================================
     elif asset in ["NVDAX", "TSLAX"]:
-        # Nhóm này chạy như Crypto, rất điên
-        config["lookback_days"] = 10 if is_high_freq else 30
+        config["lookback_days"] = 20.0
         
         # Chấp nhận đuôi dày (Fat tails)
         config["min_nu"] = 2.0 
@@ -166,8 +180,8 @@ def get_stock_refined_config(asset: str, time_increment: int, regime: dict) -> d
     # 🏢 3. AAPLX, GOOGLX (Big Tech Bluechip)
     # ==========================================
     elif asset in ["AAPLX", "GOOGLX"]:
-        # Biến động trung bình
-        config["lookback_days"] = 14 if is_high_freq else 60
+        # v2_2: AAPLX 30 ngày, GOOGLX 20 ngày
+        config["lookback_days"] = 30.0 if asset == "AAPLX" else 20.0
         config["min_nu"] = 8.0
         
         if regime["is_squeeze"]:

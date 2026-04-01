@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SimulationInput(BaseModel):
@@ -19,5 +19,4 @@ class SimulationInput(BaseModel):
         default=1, description="Number of simulation runs."
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

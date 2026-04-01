@@ -24,7 +24,7 @@ import bittensor as bt
 
 # import base miner class which takes care of most of the boilerplate
 from synth.base.miner import BaseMinerNeuron
-from synth.miner.simulations import generate_simulations
+from synth.miner.entry import generate_simulations
 from synth.protocol import Simulation
 
 
@@ -46,13 +46,15 @@ class Miner(BaseMinerNeuron):
             f"Received prediction request from: {synapse.dendrite.hotkey} for timestamp: {simulation_input.start_time}"
         )
 
-        synapse.simulation_output = generate_simulations(
+        result = generate_simulations(
+            simulation_input,
             asset=simulation_input.asset,
             start_time=simulation_input.start_time,
             time_increment=simulation_input.time_increment,
             time_length=simulation_input.time_length,
             num_simulations=simulation_input.num_simulations,
         )
+        synapse.simulation_output = result["predictions"]
 
         return synapse
 

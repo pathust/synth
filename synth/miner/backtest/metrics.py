@@ -1,124 +1,174 @@
-"""
-metrics.py — Fitness/scoring functions for backtesting.
-
-Extracted from backtest_framework.py to keep metrics independent.
-"""
-
+from abc import ABC, abstractmethod
 import numpy as np
+from synth.validator.crps_calculation import (
+    get_interval_steps,
+    calculate_price_changes_over_intervals,
+    label_observed_blocks,
+)
 
-
-def compute_crps_score(predictions: np.ndarray, real_prices: np.ndarray,
-                       time_increment: int, scoring_intervals: dict) -> float:
+class BaseEvaluator(ABC):
     """
-    Compute CRPS score using the validator's calculation.
-    Returns the sum of all CRPS scores (lower is better).
+    Abstract metric evaluator for BacktestEngine.
     """
-    from synth.validator.crps_calculation import calculate_crps_for_miner
+    def __init__(self):
+        self.name = self.__class__.__name__
 
-    score, _ = calculate_crps_for_miner(
-        predictions,
-        real_prices,
-        time_increment,
-        scoring_intervals,
-    )
-    return float(score) if score != -1 and not np.isnan(score) else float("inf")
+    @abstractmethod
+    def calculate(self, predictions: np.ndarray, truth: np.ndarray, time_increment: int, scoring_intervals: dict) -> float:
+        pass
 
 
-def compute_rmse(predictions: np.ndarray, real_prices: np.ndarray) -> float:
-    """Root Mean Squared Error of the mean prediction path."""
-    mean_pred = np.mean(predictions, axis=0)
-    min_len = min(len(mean_pred), len(real_prices))
-    if min_len == 0:
-        return float("inf")
-    return float(np.sqrt(np.mean((mean_pred[:min_len] - real_prices[:min_len]) ** 2)))
+class CRPSEvaluator(BaseEvaluator):
+    """
+    Calculates the Continuous Ranked Probability Score (CRPS).
+    Lower is better.
+    """
+    def __init__(self):
+        super().__init__()
+
+    def calculate(self, predictions: np.ndarray, truth: np.ndarray, time_increment: int, scoring_intervals: dict) -> float:
+        """
+        predictions: shape (N_sims, T)
+        truth: shape (T,)
+        """
+        # Ensure truth is 1D
+        truth = truth.ravel()
+        if len(truth) == 0 or predictions.size == 0 or np.any(predictions == 0):
+            return -1.0
+            
+        return self._calculate_crps_with_formula(predictions, truth, time_increment, scoring_intervals)
+        
+    def _crps_point_formula(self, x: float, y: np.ndarray) -> float:
+        y = np.asarray(y, dtype=float).ravel()
+        N = y.size
+        if N == 0:
+            return np.nan
+        term1 = np.mean(np.abs(y - x))
+        term2 = np.sum(np.abs(y[:, None] - y[None, :])) / (2.0 * (N ** 2))
+        return float(term1 - term2)
+
+    def _calculate_crps_with_formula(self, simulation_runs: np.ndarray, real_price_path: np.ndarray, time_increment: int, scoring_intervals: dict) -> float:
+        sum_all_scores = 0.0
+        real_path = np.asarray(real_price_path, dtype=float).ravel()
+
+        for interval_name, interval_seconds in scoring_intervals.items():
+            interval_steps = get_interval_steps(interval_seconds, time_increment)
+            absolute_price = interval_name.endswith("_abs")
+            is_gap = interval_name.endswith("_gap")
+
+            if absolute_price:
+                while (
+                    real_path[::interval_steps].shape[0] == 1
+                    and interval_steps > 1
+                ):
+                    interval_steps -= 1
+
+            simulated_changes = calculate_price_changes_over_intervals(
+                simulation_runs,
+                interval_steps,
+                absolute_price,
+                is_gap,
+            )
+            real_changes = calculate_price_changes_over_intervals(
+                real_path.reshape(1, -1),
+                interval_steps,
+                absolute_price,
+                is_gap,
+            )
+            data_blocks = label_observed_blocks(real_changes[0])
+            if len(data_blocks) == 0:
+                continue
+
+            for block in np.unique(data_blocks):
+                if block == -1:
+                    continue
+                mask = data_blocks == block
+                sim_block = simulated_changes[:, mask]
+                real_block = real_changes[0, mask]
+                num_t = sim_block.shape[1]
+                for t in range(num_t):
+                    x = float(real_block[t])
+                    y = sim_block[:, t]
+                    crps_t = self._crps_point_formula(x, y)
+                    if np.isfinite(crps_t):
+                        if absolute_price:
+                            crps_t = crps_t / real_path[-1] * 10_000
+                        sum_all_scores += crps_t
+
+        return float(sum_all_scores)
 
 
-def compute_mae(predictions: np.ndarray, real_prices: np.ndarray) -> float:
-    """Mean Absolute Error of the mean prediction path."""
-    mean_pred = np.mean(predictions, axis=0)
-    min_len = min(len(mean_pred), len(real_prices))
-    if min_len == 0:
-        return float("inf")
-    return float(np.mean(np.abs(mean_pred[:min_len] - real_prices[:min_len])))
-
-
-def compute_directional_accuracy(
-    predictions: np.ndarray, real_prices: np.ndarray
+def compute_crps_score(
+    predictions: np.ndarray,
+    truth: np.ndarray,
+    time_increment: int = 300,
+    scoring_intervals: dict | None = None,
 ) -> float:
-    """
-    Directional Accuracy error (1 - accuracy) so lower is better.
-    """
-    mean_pred = np.mean(predictions, axis=0)
-    min_len = min(len(mean_pred), len(real_prices))
-    if min_len <= 1:
-        return 1.0
-
-    pred_diff = np.diff(mean_pred[:min_len])
-    real_diff = np.diff(real_prices[:min_len])
-
-    correct = np.sum(np.sign(pred_diff) == np.sign(real_diff))
-    acc = correct / len(real_diff)
-    return float(1.0 - acc)
+    if scoring_intervals is None:
+        scoring_intervals = {"overall": 300}
+    evaluator = CRPSEvaluator()
+    return evaluator.calculate(
+        predictions=predictions,
+        truth=truth,
+        time_increment=time_increment,
+        scoring_intervals=scoring_intervals,
+    )
 
 
-def compute_var(predictions: np.ndarray, confidence_level: float = 0.95) -> float:
-    """
-    Value at Risk (VaR) of the prediction paths at a given confidence level.
-    Lower (more negative) means higher risk.
-    Calculates the percentage return VaR at the end of the simulation.
-    """
-    if len(predictions) == 0 or len(predictions[0]) < 2:
-        return 0.0
-    
-    # Calculate returns for each path from start to end
-    start_prices = predictions[:, 0]
-    end_prices = predictions[:, -1]
-    
-    # Avoid division by zero
-    valid_mask = start_prices > 0
-    if not np.any(valid_mask):
-        return 0.0
-        
-    returns = (end_prices[valid_mask] - start_prices[valid_mask]) / start_prices[valid_mask]
-    var_percentile = (1 - confidence_level) * 100
-    var_value = np.percentile(returns, var_percentile)
-    
-    return float(var_value)
+def compute_mae(predictions: np.ndarray, truth: np.ndarray) -> float:
+    if predictions is None or truth is None:
+        return float("inf")
+    pred = np.asarray(predictions, dtype=float)
+    obs = np.asarray(truth, dtype=float).ravel()
+    if pred.ndim == 2:
+        pred = np.mean(pred, axis=0)
+    n = min(pred.shape[0], obs.shape[0])
+    if n == 0:
+        return float("inf")
+    return float(np.mean(np.abs(pred[:n] - obs[:n])))
 
 
-def compute_es(predictions: np.ndarray, confidence_level: float = 0.95) -> float:
-    """
-    Expected Shortfall (ES) / Conditional VaR of the prediction paths.
-    Expected return given that the return falls below the VaR threshold.
-    """
-    if len(predictions) == 0 or len(predictions[0]) < 2:
-        return 0.0
-        
-    start_prices = predictions[:, 0]
-    end_prices = predictions[:, -1]
-    
-    valid_mask = start_prices > 0
-    if not np.any(valid_mask):
-        return 0.0
-        
-    returns = (end_prices[valid_mask] - start_prices[valid_mask]) / start_prices[valid_mask]
-    var_percentile = (1 - confidence_level) * 100
-    var_value = np.percentile(returns, var_percentile)
-    
-    # Average of returns worse than VaR
-    worse_returns = returns[returns <= var_value]
-    if len(worse_returns) == 0:
-        return float(var_value)
-        
-    return float(np.mean(worse_returns))
+def compute_rmse(predictions: np.ndarray, truth: np.ndarray) -> float:
+    if predictions is None or truth is None:
+        return float("inf")
+    pred = np.asarray(predictions, dtype=float)
+    obs = np.asarray(truth, dtype=float).ravel()
+    if pred.ndim == 2:
+        pred = np.mean(pred, axis=0)
+    n = min(pred.shape[0], obs.shape[0])
+    if n == 0:
+        return float("inf")
+    return float(np.sqrt(np.mean((pred[:n] - obs[:n]) ** 2)))
 
 
-# Registry of metric functions (except CRPS which is special)
+def compute_var(predictions: np.ndarray, alpha: float = 0.05) -> float:
+    arr = np.asarray(predictions, dtype=float)
+    if arr.size == 0:
+        return float("nan")
+    if arr.ndim == 2:
+        terminal = arr[:, -1]
+    else:
+        terminal = arr.ravel()
+    return float(np.quantile(terminal, alpha))
+
+
+def compute_es(predictions: np.ndarray, alpha: float = 0.05) -> float:
+    arr = np.asarray(predictions, dtype=float)
+    if arr.size == 0:
+        return float("nan")
+    if arr.ndim == 2:
+        terminal = arr[:, -1]
+    else:
+        terminal = arr.ravel()
+    var = np.quantile(terminal, alpha)
+    tail = terminal[terminal <= var]
+    if tail.size == 0:
+        return float(var)
+    return float(np.mean(tail))
+
+
 METRICS = {
-    "CRPS": None,  # Handled via compute_crps_score
-    "RMSE": compute_rmse,
+    "CRPS": lambda p, y: compute_crps_score(p, y),
     "MAE": compute_mae,
-    "DIR_ACC": compute_directional_accuracy,
-    "VaR_95": lambda p, r: compute_var(p, 0.95),
-    "ES_95": lambda p, r: compute_es(p, 0.95),
+    "RMSE": compute_rmse,
 }

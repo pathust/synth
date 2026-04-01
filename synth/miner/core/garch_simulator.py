@@ -83,56 +83,56 @@ def simulate_garch_paths(fitted_res,
     else:
         scale_std = np.sqrt(nu / (nu - 2.0))
 
-    # pre-allocate arrays
-    # returns_bps[t, sim] for t in 0..steps-1
+    # generate all shocks z at once: Student-t, shape (steps, n_sims)
+    z = student_t.rvs(df=nu, size=(steps, n_sims))
+    if scale_std != 1.0:
+        z = z / scale_std
+
+    # SAFETY 1: clip shocks from fat tails
+    z = np.clip(z, -5.0, 5.0)
+
+    # pre-allocate arrays (returns in bps)
     returns_bps = np.zeros((steps, n_sims), dtype=np.float64)
-    sigma = np.zeros((steps, n_sims), dtype=np.float64)
 
     # initialize sigma_0
     sigma_prev = np.full(n_sims, sigma0, dtype=np.float64)
     eps_prev = np.zeros(n_sims, dtype=np.float64)
 
-    # generate all shocks z at once: Student-t, shape (steps, n_sims)
-    # Use scipy.stats.t.rvs then standardize
-    z = student_t.rvs(df=nu, size=(steps, n_sims))
-    if scale_std != 1.0:
-        z = z / scale_std
+    # SAFETY 1.5: cap persistence to keep process mean-reverting
+    beta_safe = min(beta, 0.98)
 
     # iterate time steps (vectorized over sims)
     for t in range(steps):
-        # compute current sigma^2
-        sigma2 = omega + alpha * (eps_prev ** 2) + beta * (sigma_prev ** 2)
-        sigma_t = np.sqrt(np.maximum(sigma2, 1e-12))
-        sigma[t, :] = sigma_t
+        sigma2 = omega + alpha * (eps_prev ** 2) + beta_safe * (sigma_prev ** 2)
 
-        # eps_t = sigma_t * z_t
+        # SAFETY 2: cap variance to avoid numeric explosion
+        sigma2 = np.clip(sigma2, 1e-12, 250000.0)
+        sigma_t = np.sqrt(sigma2)
+
         eps_t = sigma_t * z[t, :]
-        # return in bps = mu + eps_t (we scaled returns by 10000 for bps earlier)
         returns_bps[t, :] = mu + eps_t
 
-        # update for next step
         sigma_prev = sigma_t
         eps_prev = eps_t
 
     # Convert returns (bps) back to log-returns in decimal
-    # log_return_decimal = returns_bps / 10000.0
     logret = returns_bps / 10000.0  # shape (steps, n_sims)
 
-    # Build price paths
-    # include initial price at index 0
+    # Build price paths (vectorized) with final guard
     prices = np.zeros((n_sims, steps + 1), dtype=np.float64)
     prices[:, 0] = S0
-    # cumulative log returns per sim
-    # iterate time steps to avoid huge memory ops (steps small anyway)
-    for t in range(steps):
-        # S_t+1 = S_t * exp(logret_t)
-        prices[:, t + 1] = prices[:, t] * np.exp(logret[t, :])
+    cum_ret = np.cumsum(logret, axis=0)
+
+    # SAFETY 3: clip cumulative returns before exp()
+    cum_ret = np.clip(cum_ret, -4.0, 4.0)
+    prices[:, 1:] = S0 * np.exp(cum_ret).T
 
     meta = {
         "mu": float(mu),
         "omega": float(omega),
         "alpha": float(alpha),
         "beta": float(beta),
+        "beta_safe": float(beta_safe),
         "nu": float(nu),
         "sigma0": float(sigma0),
         "n_sims": int(n_sims),

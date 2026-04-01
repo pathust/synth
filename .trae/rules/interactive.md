@@ -1,0 +1,3 @@
+- Có thể hướng dẫn trong tài liệu ARCHITECTURE.md, DATA_PIPELINE_SPEC.md, TESTING_SPEC.md, REFACTOR_PLAN.md, STRATEGY_SPEC.md, CONFIG_SCHEMA.md chưa phù hợp với yêu cầu của miner, validator của subnet, có thể linh hoạt điều chỉnh (vẫn bám sát ý tưởng).
+- Sử dụng conda synth để chạy python, pip và testing.
+- Để tăng tốc độ chạy thử có thể điều chỉnh simulate 50 đường thay vì 1000 đường.
