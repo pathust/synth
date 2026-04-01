@@ -19,13 +19,18 @@ class UnifiedDataLoader:
     def __init__(self):
         self._handler = DataHandler()
 
-    def _get_time_config(self, asset: str):
+    def _get_time_config(self, asset: str, frequency: Optional[str] = None):
+        if frequency == "high":
+            return HIGH_FREQUENCY
+        if frequency == "low":
+            return LOW_FREQUENCY
+            
         labels = get_prompt_labels_for_asset(asset) or []
         if "high" in labels:
             return HIGH_FREQUENCY
         return LOW_FREQUENCY
 
-    def get_historical_data(self, asset: str, end_time: str, window_days: int) -> np.ndarray:
+    def get_historical_data(self, asset: str, end_time: str, window_days: int, frequency: Optional[str] = None) -> np.ndarray:
         """
         Retrieves exactly `window_days` worth of data strictly BEFORE `end_time`.
         Uses nearest past interpolation if some points are missing.
@@ -34,6 +39,7 @@ class UnifiedDataLoader:
             asset: The target asset ticker.
             end_time: The cutoff timestamp (exclusive). No data at or after this time.
             window_days: Amount of historical context required.
+            frequency: Optional frequency override ("high" or "low").
             
         Returns:
             np.ndarray: 1D Historical price array.
@@ -42,7 +48,7 @@ class UnifiedDataLoader:
         end_ts = int(end_dt.timestamp())
         start_ts = int((end_dt - timedelta(days=window_days)).timestamp())
         
-        cfg = self._get_time_config(asset)
+        cfg = self._get_time_config(asset, frequency)
         tf = "1m" if cfg.time_increment == 60 else "5m"
         
         prices_dict = self._load_data(asset, tf)
@@ -72,11 +78,17 @@ class UnifiedDataLoader:
         # Strict cutoff is guaranteed by required_ts stopping before end_ts
         return np.array(path, dtype=float)
 
-    def get_historical_dict(self, asset: str, end_time: str, window_days: int) -> Dict[str, float]:
+    def get_historical_dict(self, asset: str, end_time: str, window_days: int, frequency: Optional[str] = None) -> Dict[str, float]:
         """
         Retrieves exactly `window_days` worth of data strictly BEFORE `end_time`
         in the legacy dictionary format needed by existing math models.
         
+        Args:
+            asset: The target asset ticker.
+            end_time: The cutoff timestamp (exclusive).
+            window_days: Amount of historical context required.
+            frequency: Optional frequency override ("high" or "low").
+            
         Returns:
             Dict[str, float]: {timestamp_str: price_float}
         """
@@ -84,7 +96,7 @@ class UnifiedDataLoader:
         end_ts = int(end_dt.timestamp())
         start_ts = int((end_dt - timedelta(days=window_days)).timestamp())
         
-        cfg = self._get_time_config(asset)
+        cfg = self._get_time_config(asset, frequency)
         tf = "1m" if cfg.time_increment == 60 else "5m"
         
         prices_dict = self._load_data(asset, tf)

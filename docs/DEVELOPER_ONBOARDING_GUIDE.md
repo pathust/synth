@@ -85,7 +85,7 @@ Template: [strategy_template.py](file:///Users/taiphan/Documents/synth/docs/temp
 ### Bước 3: Implementation + parameter surface
 
 - Set metadata rõ ràng:
-  - `name`, `supported_assets`, `supported_frequencies`
+  - `name`, `supported_asset_types`, `supported_regimes`
   - `default_params`, `param_grid`
 - Tách rõ:
   - phần estimate từ historical data

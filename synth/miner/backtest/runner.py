@@ -72,11 +72,13 @@ class BacktestRunner:
             )
 
             # Fetch data for this asset (only load from DB)
-            fetch_price_data(asset, time_increment, only_load=True)
+            hist_data = fetch_price_data(asset, time_increment, only_load=True)
 
             # Get historical prices dict
             time_frame = "1m" if time_increment == 60 else "5m"
-            hist_data = self.data_handler.load_price_data(asset, time_frame)
+            if not hist_data or time_frame not in hist_data:
+                # Try loading directly if fetch_price_data returned nothing
+                hist_data = self.data_handler.load_price_data(asset, time_frame)
 
             if not hist_data or time_frame not in hist_data:
                 return {
@@ -282,7 +284,9 @@ class BacktestRunner:
                         s for s in strategies
                         if s.name != "ensemble_weighted"
                     ]
-                total_combos += len(strategies)
+                for strategy in strategies:
+                    if strategy.supports_frequency(freq):
+                        total_combos += 1
 
         print(
             f"\n{'='*60}\n"
@@ -305,6 +309,8 @@ class BacktestRunner:
                 fetch_price_data(asset, cfg.time_increment, only_load=True)
 
                 for strategy in strategies:
+                    if not strategy.supports_frequency(freq):
+                        continue
                     combo_idx += 1
                     print(
                         f"\n[{combo_idx}/{total_combos}] "

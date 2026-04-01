@@ -11,8 +11,8 @@ class NewStrategyTemplate(BaseStrategy):
     name = "new_strategy_template"
     version = "1.0"
     description = "Template strategy"
-    supported_assets = ["BTC", "ETH"]
-    supported_frequencies = ["high", "low"]
+    supported_asset_types = ["crypto"]
+    supported_regimes = ["bull", "high_vol", "ranging"]
     default_params = {
         "drift": 0.0,
         "vol": 0.01,

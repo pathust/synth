@@ -66,6 +66,7 @@ class BaseStrategy(ABC):
     description: str = ""
     supported_asset_types: list[str] = []
     supported_regimes: list[str] = []
+    supported_frequencies: list[str] = []
     default_params: dict = {}
     param_grid: dict = {}
 
@@ -114,7 +115,9 @@ class BaseStrategy(ABC):
         return regime in self.supported_regimes
 
     def supports_frequency(self, frequency: str) -> bool:
-        return True
+        if not self.supported_frequencies:
+            return True
+        return frequency in self.supported_frequencies
 
     def __repr__(self) -> str:
         return (

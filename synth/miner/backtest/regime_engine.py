@@ -446,6 +446,9 @@ class PredictionBacktestEngine:
         best_tune = float("inf")
         best_val = float("inf")
 
+        # Use case-specific frequency if available, otherwise fallback to config
+        effective_freq = case_key.market_type if case_key.market_type in ["high", "low"] else config.frequency
+
         for strategy in candidates:
             fold_tune_scores: list[float] = []
             fold_val_scores: list[float] = []
@@ -455,7 +458,7 @@ class PredictionBacktestEngine:
                     tune_result = self.tuner.run(
                         strategy=strategy,
                         asset=case_key.asset,
-                        frequency=config.frequency,
+                        frequency=effective_freq,
                         num_runs=len(train_dates),
                         num_sims=config.num_sims,
                         seed=config.seed + fold_idx,
@@ -469,7 +472,7 @@ class PredictionBacktestEngine:
                     val_result = self.runner.run_benchmark(
                         strategy,
                         case_key.asset,
-                        config.frequency,
+                        effective_freq,
                         num_runs=len(val_dates),
                         num_sims=config.num_sims,
                         seed=config.seed + 100 + fold_idx,
@@ -525,7 +528,7 @@ class PredictionBacktestEngine:
             test_result = self.runner.run_benchmark(
                 best_strategy,
                 case_key.asset,
-                config.frequency,
+                effective_freq,
                 num_runs=len(test_dates),
                 num_sims=config.num_sims,
                 seed=config.seed + 200 + fold_idx,

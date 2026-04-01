@@ -54,8 +54,8 @@ def main():
         for name in registry.list_all():
             strat = registry.get(name)
             print(
-                f"  {name:<25} assets={strat.supported_assets or 'all'} "
-                f"freq={strat.supported_frequencies or 'all'}"
+                f"  {name:<25} assets={strat.supported_asset_types or 'all'} "
+                f"regimes={strat.supported_regimes or 'all'}"
             )
         print()
         return

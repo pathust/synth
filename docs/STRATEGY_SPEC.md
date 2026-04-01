@@ -7,8 +7,11 @@
 class BaseStrategy(ABC):
     name: str = ""
     version: str = "1.0"
-    supported_assets: list[str] = []
-    supported_frequencies: list[str] = []
+    description: str = ""
+    supported_asset_types: list[str] = []
+    supported_regimes: list[str] = []
+    default_params: dict = {}
+    param_grid: dict = {}
     
     @abstractmethod
     def simulate(

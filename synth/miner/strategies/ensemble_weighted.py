@@ -94,7 +94,11 @@ class EnsembleWeightedStrategy(BaseStrategy):
         # ── Run each base strategy and concatenate paths ──
         all_paths = []
         for strat, n_s in zip(available, sims_per_strategy):
-            sub_seed = seed + hash(strat.name) % 10000 if seed else None
+            sub_seed = None
+            if seed is not None:
+                import hashlib
+                h = hashlib.sha256(strat.name.encode()).hexdigest()
+                sub_seed = (seed + int(h, 16) % 1_000_000) & 0x7FFF_FFFF
             try:
                 paths = strat.simulate(
                     prices_dict,

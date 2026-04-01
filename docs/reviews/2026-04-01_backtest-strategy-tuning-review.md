@@ -1,243 +1,243 @@
-# Review Chi Tiet: Backtest, Strategy, Tuning
+# Đánh Giá Chi Tiết: Backtest, Strategy, Tuning
 
-Ngay review: 2026-04-01  
-Reviewer: Codex (code + command verification trong `conda -n synth`)
+Ngày đánh giá: 2026-04-01  
+Người đánh giá: Codex (xác minh mức code và lệnh trong `conda -n synth`)
 
-## 1. Executive summary
+## 1. Tóm tắt điều hành (Executive summary)
 
-Cum `backtest/strategy/tuning` da co khung to chuc ro (runner, tuner, regime engine, exporter), nhung hien co mot so loi logic co the lam sai ket luan tuning va routing deploy:
+Cụm `backtest/strategy/tuning` đã có khung tổ chức rõ ràng (runner, tuner, regime engine, exporter), nhưng hiện có một số lỗi logic có thể làm sai kết luận của tuning và định tuyến (routing) triển khai:
 
-- Co loi horizon/frequency trong regime backtest pipeline.
-- Co loi scoring interval gap (naming mismatch + indexing bug).
-- Co drift du lieu high/low giua cac luong backtest slot va runtime simulation.
-- Co mot so bug CLI/tooling lam hu workflow review nhanh.
+- Có lỗi về horizon/frequency (chân trời/tần suất) trong pipeline regime backtest.
+- Có lỗi sai khác khoảng đánh giá điểm gap (sai khác tên gọi và lỗi chỉ mục).
+- Có sự trôi dạt dữ liệu high/low giữa các luồng backtest slot và runtime simulation.
+- Có một số lỗi trong các công cụ CLI làm hỏng quy trình làm việc (workflow) kiểm tra nhanh.
 
-## 2. Findings (sap theo muc do nghiem trong)
+## 2. Các phát hiện (xếp hạng theo mức độ nghiêm trọng)
 
-### [P1] Regime backtest dang tune/eval theo `config.frequency`, bo qua `case.market_type`
+### [P1] Regime backtest đang điều chỉnh/đánh giá theo `config.frequency`, bỏ qua `case.market_type`
 
-**Bang chung**
+**Bằng chứng**
 
-- Trong `evaluate_case`, tune/validation/test deu truyen `config.frequency`, khong dung `case_key.market_type`:
+- Trong `evaluate_case`, cả tune/validation/test đều truyền `config.frequency`, không dùng `case_key.market_type`:
   - `synth/miner/backtest/regime_engine.py:455-459`
   - `synth/miner/backtest/regime_engine.py:469-473`
   - `synth/miner/backtest/regime_engine.py:525-529`
-- Khi export runtime, crypto case `market_type=high|low` lai duoc map thanh frequency high/low:
+- Khi xuất ra cho runtime, trường hợp crypto `market_type=high|low` lại được ánh xạ thành frequency high/low:
   - `synth/miner/backtest/regime_engine.py:729-733`
-- CLI default frequency la `low`:
+- Tham số frequency mặc định của CLI là `low`:
   - `synth/miner/run_regime_backtest.py:43`
 
-**Tac dong**
+**Tác động**
 
-- Case `btc/high/*` co the duoc chon strategy dua tren backtest low (24h) nhung van export vao bucket high (1h).
-- Routing YAML sinh ra de deploy co nguy co "high-route duoc tune bang low-horizon".
+- Trường hợp `btc/high/*` có thể được chọn strategy dựa trên thông số backtest low (24h) nhưng vẫn xuất thông tin ra nhóm (bucket) high (1h).
+- Tệp định tuyến (routing YAML) sinh ra để deploy có nguy cơ "luồng high được tune bằng horizon low".
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Tinh `effective_frequency` theo `case_key.market_type` (crypto high/low), khong su dung 1 bien toan cuc cho moi case.
-- Bo sung test assert frequency theo case.
+- Tính toán `effective_frequency` theo `case_key.market_type` (crypto high/low), không sử dụng duy nhất một biến toàn cục cho mọi trường hợp.
+- Bổ sung test assert kiểm tra frequency theo trường hợp cụ thể.
 
 ---
 
-### [P1] Scoring interval "gap" cua HFT khong duoc kich hoat dung
+### [P1] Quãng tính điểm "gap" của HFT không được kích hoạt đúng
 
-**Bang chung**
+**Bằng chứng**
 
-- Prompt config dat ten interval dang `_gaps`:
+- Trong cấu hình prompt (prompt config), tên của khoảng (interval) có dạng là `_gaps`:
   - `synth/validator/prompt_config.py:66-77`
-- CRPS logic lai check suffix `_gap`:
+- CRPS logic lại kiểm tra với hậu tố `_gap`:
   - `synth/validator/crps_calculation.py:37-39`
   - `synth/miner/backtest/metrics.py:56-58`
-- Runtime verify:
+- Xác minh bằng lệnh thực tế:
   - `conda run -n synth python -c "from synth.validator.prompt_config import HIGH_FREQUENCY; ..."`
-  - Ket qua: `0` key ket thuc `_gap`, `12` key ket thuc `_gaps`.
+  - Kết quả: `0` khóa có đuôi `_gap`, `12` khóa có đuôi `_gaps`.
 
-**Tac dong**
+**Tác động**
 
-- Toan bo block gap scoring HFT khong bao gio duoc bat theo y do.
-- CRPS thuc te khac voi design scoring trong prompt config.
+- Toàn bộ khối dùng tính điểm gap trong HFT không bao giờ được bật như ý định ban đầu.
+- CRPS thực tế bị sai khác so với thiết kế tính điểm trong prompt config.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Chot 1 naming convention (`_gap` hoac `_gaps`) va dong bo prompt + scorer.
-- Them unit test cho suffix parser.
+- Chốt sử dụng một quy ước đặt tên chung (`_gap` hoặc `_gaps`) và đồng bộ giữa prompt config và module tính điểm.
+- Viết thêm unit test để đảm bảo phần mềm đọc hậu tố cho đúng.
 
 ---
 
-### [P1] Nhanh gap mode con co bug index neu duoc kich hoat
+### [P1] Nhánh gap mode đang có mầm mống lỗi chỉ mục (index) nếu thực sự được kích hoạt
 
-**Bang chung**
+**Bằng chứng**
 
-- Khi `is_gap=True`, code cat `interval_prices = interval_prices[:1]`:
+- Khi `is_gap=True`, mã nguồn thực hiện cắt mảng `interval_prices = interval_prices[:1]`:
   - `synth/validator/crps_calculation.py:167-170`
-- Lenh verify nhanh:
+- Xác minh bằng lệnh:
   - `conda run -n synth python -c "... calculate_price_changes_over_intervals(..., is_gap=True) ..."`
-  - Output shape `(1, 3)` voi input 2 paths => mat toan bo paths khac, khong phai "lay 1 gap theo thoi gian".
+  - Output có shape `(1, 3)` cho danh sách 2 path đầu vào. Nó lấy vị trí 1 => làm mất toàn bộ các đường path còn lại, chứ không phải lấy "1 gap trải dọc theo chiều thời gian".
 
-**Tac dong**
+**Tác động**
 
-- Neu fix suffix de bat gap mode ma khong fix index nay, scoring se sai nghiem trong.
+- Nếu khắc phục xong lỗi chọn hậu tố, điều này sẽ làm sụp hẳn nhánh xử lý và tạo điểm số sai lệch hoàn toàn.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Dinh nghia ro "gap interval" can output dang nao, sau do sua slicing theo truc thoi gian (khong theo truc so path).
-- Them regression test cho shape + gia tri gap mode.
+- Định nghĩa rõ "gap interval" phải có định dạng kết quả đầu ra như thế nào, rồi sửa phép cắt khối (slicing) theo chiều của thời gian (chứ không phải theo chỉ mục path).
+- Củng cố bằng một bài regression test cho shape và giá trị cuối cùng.
 
 ---
 
-### [P1] Backtest slot va runtime simulation deu dang "uu tien high" cho asset dual-frequency
+### [P1] Cả backtest slot và runtime simulation đang "ưu tiên luồng high" đối với các tài sản có frequency đôi (dual-frequency)
 
-**Bang chung**
+**Bằng chứng**
 
-- `BacktestEngine._get_prompt_config` uu tien HIGH neu asset co nhan high:
+- `BacktestEngine._get_prompt_config` ưu tiên gán nhánh HIGH nếu tài sản cho dán cả bộ nhãn đó:
   - `synth/miner/backtest/engine.py:70-74`
-- `run_slots` khong nhan frequency argument; luon dung cfg tu asset:
+- Thao tác gộp `run_slots` hiện tại từ chối tham số argument cho phép; nó nhặt cfg từ trong chi tiết của asset:
   - `synth/miner/backtest/engine.py:87-95`
-- `UnifiedDataLoader` cung map theo asset labels:
+- `UnifiedDataLoader` cũng có cách tìm kiếm mapping dọc theo nhãn (labels):
   - `synth/miner/data/dataloader.py:22-26`
-- Verify:
+- Kiểm tra lại:
   - `conda run -n synth python -c "from synth.miner.backtest.engine import BacktestEngine; ..."`
-  - Output: `BTC -> high`, `NVDAX -> low`.
+  - Hệ thống cho ra: `BTC -> high`, `NVDAX -> low`.
 
-**Tac dong**
+**Tác động**
 
-- Khong the danh gia slot low cho BTC/ETH/SOL/XAU trong `run_slots`.
-- Co nguy co dung data granularity 1m cho path can 5m o low-horizon.
+- Gây khó hoặc vô hiệu hóa việc ước lượng trên dòng slot của low cho BTC/ETH/SOL/XAU khi chạy `run_slots`.
+- Nguy cơ tải khung granularity của 1m lên cho 5m ở horizon thấp.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Truyen explicit `frequency`/`time_increment` vao `run_slots` va dataloader APIs.
+- Ràng buộc tham số truyền vào (explicit argument) cho `frequency`/`time_increment` khi làm việc cùng đối tượng `run_slots` và khi thiết kế các APIs gọi dataloader.
 
 ---
 
-### [P2] `run_strategy_scan --metric DIR_ACC` bi hong ngay tai startup
+### [P2] Lệnh bash `run_strategy_scan --metric DIR_ACC` bị lỗi ngưng ngay lúc startup
 
-**Bang chung**
+**Bằng chứng**
 
-- CLI cho phep `DIR_ACC`:
+- Công cụ CLI hỗ trợ cho phép truyền vào metric `DIR_ACC`:
   - `synth/miner/run_strategy_scan.py:84-87`
-- Runner chi support metrics trong `METRICS`:
+- Tuy nhiên khối Runner chỉ chấp thuận danh sách metric nhất định thuộc `METRICS`:
   - `synth/miner/backtest/runner.py:40-43`
   - `synth/miner/backtest/metrics.py:170-174`
-- Verify command:
+- Xác thực:
   - `conda run -n synth python -m synth.miner.run_strategy_scan --assets BTC --frequencies low --num-runs 1 --num-sims 1 --metric DIR_ACC`
-  - Ket qua: `ValueError: Unknown metric 'DIR_ACC'. Available: ['CRPS', 'MAE', 'RMSE']`.
+  - Lỗi sinh ra: `ValueError: Unknown metric 'DIR_ACC'. Available: ['CRPS', 'MAE', 'RMSE']`.
 
-**Tac dong**
+**Tác động**
 
-- CLI contract sai, gay fail cho nguoi dung va CI script.
+- Hợp đồng của CLI sai, báo lỗi gây phiền cho quá trình dùng tay và chặn đứng script chạy CI tự động.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Hoac bo `DIR_ACC` khoi choices, hoac implement metric tuong ung trong `METRICS`.
+- Hoặc bỏ tùy chọn `DIR_ACC` khỏi menu, hoặc viết bù đúng đoạn mã tính toán metric vào `METRICS`.
 
 ---
 
-### [P2] Backtest low-frequency co the fail du DB co 1m data (do bo qua ket qua aggregate)
+### [P2] Tính năng Backtest low-frequency có khả năng lỗi dù DB đang chứa dữ liệu 1m (do phớt lờ thao tác lưu của bước hợp nhất - aggregate)
 
-**Bang chung**
+**Bằng chứng**
 
-- `fetch_price_data(..., only_load=True)` co nhanh aggregate 1m -> 5m va return data:
+- Lệnh gọi `fetch_price_data(..., only_load=True)` chuyển quy trình chạy nhánh gộp dữ liệu 1m biến thành 5m rồi return lại trực tiếp kết quả:
   - `synth/miner/my_simulation.py:67-83`
-- `run_single` goi ham nay nhung khong dung return; sau do load lai truc tiep 5m tu DB:
+- Vấn đề là `run_single` gọi xong lại bỏ vào ngăn trống không lưu bộ nhớ output này; tiếp theo lại vội vàng query để đòi đúng dữ liệu gốc 5m từ DB:
   - `synth/miner/backtest/runner.py:75-80`
 
-**Tac dong**
+**Tác động**
 
-- Neu DB thieu 5m nhung co 1m, backtest van FAIL "No data for asset/5m".
+- Nếu rỗng trong DB dòng của 5m nhưng thỏa 1m, quá trình chạy của backtest vẫn chết bằng thông điệp FAIL "No data for asset/5m".
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Su dung data tra ve tu `fetch_price_data`, hoac persist aggregated 5m truoc khi `load_price_data`.
+- Yêu cầu khai thác data được chuyển về từ bước `fetch_price_data`, hoặc bắt buộc ghi xuống disk cho nhóm nén gộp 5m lúc vừa gọi hàm `load_price_data`.
 
 ---
 
-### [P2] Seed ensemble khong reproducible giua cac process
+### [P2] Nguồn mầm ngẫu nhiên (seed) của phép lấy mẫu tổng hợp (ensemble) không tái lập lại được (reproducible) giữa nhiều session độc lập (process)
 
-**Bang chung**
+**Bằng chứng**
 
-- Sub-seed dung Python `hash(...)`:
+- Sub-seed đang dùng lời gọi có sẵn Python `hash(...)`:
   - `synth/miner/ensemble/builder.py:18-20`
   - `synth/miner/strategies/ensemble_weighted.py:97`
-- Verify 2 process lien tiep:
-  - Lan 1: `_make_sub_seed(42,'garch_v4') -> 82778`
-  - Lan 2: `_make_sub_seed(42,'garch_v4') -> 82248`
+- Tiến hành thực chứng trên 2 quá trình chạy độc lập vừa thao tác liền tiếp nhau:
+  - Lần 1: `_make_sub_seed(42,'garch_v4') -> 82778`
+  - Lần 2: `_make_sub_seed(42,'garch_v4') -> 82248`
 
-**Tac dong**
+**Tác động**
 
-- Cung config + seed nhung ket qua ensemble khac nhau qua moi lan restart process.
-- Giam do tin cay cua tuning comparison va reproducibility.
+- Set đầy đủ thông số giống y xì nhưng giá trị seed ngẫu nhiên lại lệch hướng liên tục cứ mỗi lần hệ thống bị reload.
+- Hao mòn độ chất lượng cũng như tính chính xác công tâm lúc rà soát thông số tuning.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Dung hash on dinh (vd `hashlib.sha256(strategy_name.encode())`) de sinh sub-seed.
+- Lắp thuật toán hàm băm an toàn/tĩnh như `hashlib.sha256(strategy_name.encode())` thay thế làm khung sinh seed.
 
 ---
 
-### [P3] `run_duel --list` crash do metadata field da cu
+### [P3] Lệnh bash `run_duel --list` chết do vấp trúng Metadata cũ kỹ
 
-**Bang chung**
+**Bằng chứng**
 
-- CLI truy cap `strat.supported_assets` va `strat.supported_frequencies`:
+- Biến đọc lệnh CLI lục tìm tới các từ khóa nội chuẩn cũ ví dụ như `strat.supported_assets` cũng như cào tìm `strat.supported_frequencies`:
   - `synth/miner/backtest/run_duel.py:57-58`
-- BaseStrategy hien tai khong co 2 field nay:
+- Khu vực dữ liệu cho BaseStrategy hiện thực không cấy mảng 2 thông tin cũ đó:
   - `synth/miner/strategies/base.py:67-69`
-- Verify command:
+- Thực nghiệm bằng Terminal:
   - `conda run -n synth python -m synth.miner.backtest.run_duel --list`
-  - Ket qua: `AttributeError: 'ArimaEquityStrategy' object has no attribute 'supported_assets'`.
+  - Cảnh báo bắt tại trận: `AttributeError: 'ArimaEquityStrategy' object has no attribute 'supported_assets'`.
 
-**Tac dong**
+**Tác động**
 
-- Workflow inspect nhanh strategy inventory bi vo.
+- Một lệnh rất ngắn để soát inventory đang vô năng lượng gây khó kiểm soát.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Sua CLI sang dung metadata hien tai (`supported_asset_types`) hoac method `supports_*`.
+- Cập nhật dòng trỏ CLI điều phối về lấy đúng metadata (hoặc `supported_asset_types`) hay hàm tra cập method `supports_*`.
 
 ---
 
-### [P3] `scan_all` khong filter compatibility theo frequency
+### [P3] Thuật chạy lệnh rà `scan_all` không thể sàng dữ liệu và kiểm cho trùng khớp về tần suất tín hiệu (frequency)
 
-**Bang chung**
+**Bằng chứng**
 
-- `scan_all` lap theo `asset x freq` nhung strategy list chi filter theo asset:
+- Các bước trong `scan_all` rẽ nhánh tạo lưới duyệt `asset x freq` khi nhặt ra từng thành phần chạy strategy đều chỉ lo nhìn vào dòng asset:
   - `synth/miner/backtest/runner.py:277-304`
 
-**Tac dong**
+**Tác động**
 
-- Co the quet nhung combo khong hop le theo frequency policy, tang noise/chi phi scan.
+- Rơi rớt dư điểm thừa làm cho quét nhầm phải mảng vô phép gây nghẽn làm gia tăng thông báo độ nhiễu/nâng cấp hao phí làm trễ việc.
 
-**Khuyen nghi**
+**Khuyến nghị**
 
-- Them filter `strategy.supports_frequency(freq)` va/hoac filter theo prompt support matrix.
+- Thiết lập lệnh rào kiểm bộ lọc `strategy.supports_frequency(freq)` và (hay) một rào soát chéo hỗ trợ chiếu trên không gian support matrix của dữ liệu prompt.
 
-## 3. Test coverage gaps
+## 3. Các khoảng trống trên độ bao phủ thử nghiệm (Test coverage gaps)
 
-1. Chua co test bat loi `_gap` vs `_gaps` cho scoring intervals.
-2. Chua co test cho behavior frequency-per-case trong `PredictionBacktestEngine`.
-3. Chua co test contract cho CLI metric choices (`run_strategy_scan`).
-4. Chua co test smoke cho `run_duel --list`.
+1. Chưa có bộ thử nghiệm (test) cho vụ xử lý bắt nhầm từ khóa đuôi `_gap` trước biến `_gaps` nơi khoảng thông báo thu chấm điểm.
+2. Chưa có bộ test mô phỏng phản kháng cho hành vi frequency tùy biến theo từng class của môđun `PredictionBacktestEngine`.
+3. Chưa có bộ test kiểm soát hợp quy cho menu bộ thông tin metric gọi truyền từ CLI (`run_strategy_scan`).
+4. Chưa chạy thử gói thử nghiệm kiểm chứng độ ổn định dạo ban đầu (smoke) giành chức năng gọi nhanh `run_duel --list`.
 
-## 4. Ke hoach xu ly de xuat
+## 4. Lộ trình kế hoạch tiến độ xử lý đề xuất
 
-### Nhom A (can lam ngay)
+### Nhóm A (Cần giải quyết luôn)
 
-1. Fix regime engine frequency-per-case.
-2. Fix scoring interval parser + gap slicing.
-3. Fix `run_strategy_scan` metric contract.
+1. Fix lỗi cài chế độ thiết lập tần suất tùy tính hình riêng ở máy thông dịch lõi regime (frequency-per-case).
+2. Fix mâu thuẫn khâu băm giải cắt mã định nghĩa cho interval và lát cắt mảng chỉ định thuộc gap slicing.
+3. Chỉnh cho chuẩn hợp đồng khai báo (contract) thông tin truy số gọi metric trên lệnh `run_strategy_scan`.
 
-### Nhom B (gan)
+### Nhóm B (Kế tiếp gần)
 
-1. Truyen explicit frequency/time_increment vao dataloader va `run_slots`.
-2. On dinh hoa seed generation (hashlib).
-3. Fix `run_duel --list`.
+1. Giao rành rọt tham số thông báo frequency và /hoặc biến bù giờ `time_increment` tới khối dataloader và lệnh `run_slots`.
+2. Tạo nguồn hằng định không trượt khóa (hashlib) bảo vệ nguồn cấp hằng sinh chu kỳ (seed) tổng kết ngẫu nhiên.
+3. Kịp thời sửa nhầm của hàm `run_duel --list`.
 
-### Nhom C (chat luong he thong)
+### Nhóm C (Củng cố nền chất lượng chung hệ thống dài lâu)
 
-1. Bo sung integration tests cho low/high end-to-end.
-2. Chot mot data path duy nhat cho backtest vs runtime de tranh drift.
+1. Bổ khuyết loạt chuỗi môđul rà test phối ghép tích hợp cho low và high ở mạch chạy điểm cuối (end-to-end).
+2. Quyết đoạt chọn lựa theo đúng chuỗi mạch khai dòng cho chuẩn một path xuyên tâm giành thông luồng từ backtest cho vươn tới phần runtime ngăn rủi ro đứt dòng trượt xa.
 
-## 5. Lenh verify da su dung
+## 5. Danh sách tài liệu tra các dòng lệnh thực nghiệm hệ thống
 
 - `conda run -n synth python -m synth.miner.backtest.run_duel --list`
 - `conda run -n synth python -m synth.miner.run_strategy_scan --assets BTC --frequencies low --num-runs 1 --num-sims 1 --metric DIR_ACC`

@@ -53,23 +53,24 @@ Luồng xử lý từ khi Validator gửi yêu cầu đến khi Miner trả về
 7. **Phản hồi (Axon Server)**: Axon trả kết quả đã format về lại cho Validator.
 
 ## Storage Architecture
-Để giải quyết bài toán "DuckDB không hỗ trợ concurrent write", kiến trúc lưu trữ được phân chia nghiêm ngặt:
+Để tối ưu hiệu suất và đảm bảo tính nhất quán của dữ liệu, hệ thống sử dụng kiến trúc lưu trữ đa tầng (multi-tier storage) với MySQL là nguồn dữ liệu chính (Source of Truth):
 
-- **DuckDB (Market Data DB)**: Chỉ dùng để lưu trữ raw tick data và OHLCV. 
-  - *Writer*: Chỉ có process `pyth_fetcher` (hoặc các data fetcher daemon) được phép ghi (write) vào DB này.
-  - *Reader*: Tất cả các process khác (Miner, Tuner, Backtest) chỉ được phép kết nối với chế độ read-only.
+- **MySQL (Primary Market Data DB)**: Lưu trữ toàn bộ dữ liệu giá lịch sử (OHLCV) cho tất cả các tài sản và khung thời gian (1m, 5m).
+  - *Writer*: Process `fetch_daemon.py` thực hiện ghi dữ liệu mới mỗi 60 giây.
+  - *Reader*: Miner, Tuner, và Backtest Engine đọc dữ liệu trực tiếp từ MySQL để phục vụ tính toán.
+- **DuckDB (Analytical Mirror - Tùy chọn)**: Một bản sao (mirror) của dữ liệu từ MySQL được đồng bộ sang DuckDB phục vụ các truy vấn phân tích (OLAP) nhanh hoặc làm bộ nhớ đệm (cache) cho một số tác vụ đặc thù.
+  - *Ownership*: `fetch_daemon.py` đảm nhận việc đồng bộ từ MySQL sang DuckDB.
 - **Parquet (Feature Store)**: Lưu trữ các đặc trưng (features) đã được tính toán trước phục vụ training/tuner. Parquet file cho phép đọc ghi hiệu quả, có thể tách theo từng file/phân vùng (partition) nên không bị lock.
 - **Per-session Storage (Backtest DB)**: Mỗi phiên backtest hoặc tuning sẽ sinh ra một file SQLite hoặc DuckDB tạm thời (ví dụ: `backtest_run_<id>.db`). Tránh hoàn toàn việc các test run đồng thời tranh chấp ghi vào một DB chung.
-- **Lý do tách biệt**: DuckDB được tối ưu cho OLAP (Analytical) nhưng lại sử dụng cơ chế file lock khắt khe (1 writer, multiple readers). Việc tách biệt không gian ghi của Fetcher, Tuner và Backtest giúp hệ thống không bao giờ bị crash `database is locked` khi chạy song song.
 
 ## Process Isolation Model
 
 | Process / Thread | Target Storage | Ghi chú (Write Permissions) |
 |------------------|----------------|------------------------------|
-| **Data Fetcher** (Daemon) | `market_data.duckdb` | Ghi liên tục mỗi 60s. Process duy nhất giữ Write Lock trên DuckDB chính. |
-| **Live Miner** (Axon) | In-memory Cache, Logs | Chỉ Read từ DuckDB. Không ghi DB. Ghi log ra file. |
-| **Tuner / Trainer** | Parquet Feature Store, `strategies.yaml` | Read từ DuckDB. Ghi feature ra Parquet. Ghi config bằng atomic swap. |
-| **Backtest Engine** | `backtest_<session>.duckdb` | Tạo file DB riêng biệt trên mỗi session để ghi kết quả backtest. |
+| **Data Fetcher** (Daemon) | `MySQL`, `DuckDB` (Mirror) | Ghi liên tục mỗi 60s vào MySQL. Đồng bộ sang DuckDB nếu được cấu hình. |
+| **Live Miner** (Axon) | MySQL, In-memory Cache | Chỉ Read từ MySQL/Cache. Không ghi DB. Ghi log ra file. |
+| **Tuner / Trainer** | MySQL, Parquet Store | Read từ MySQL. Ghi feature ra Parquet. Ghi config bằng atomic swap. |
+| **Backtest Engine** | MySQL, `backtest_<session>.db` | Read từ MySQL. Tạo file DB riêng biệt cho mỗi session để ghi kết quả. |
 
 ## Config Reload Lifecycle
 Giải quyết vấn đề race condition khi Tuner cập nhật `strategies.yaml` trong khi Miner đang đọc.

@@ -7,6 +7,7 @@ objects and the strategy registry to build ensemble paths.
 
 from __future__ import annotations
 
+import hashlib
 import numpy as np
 from typing import Optional, Callable
 
@@ -17,7 +18,10 @@ from synth.miner.ensemble.trimmer import OutlierTrimmer
 
 def _make_sub_seed(base_seed: int, strategy_name: str) -> int:
     """Deterministic but unique seed per strategy for independent innovations."""
-    return (base_seed + hash(strategy_name) % 100_000) & 0x7FFF_FFFF
+    h = hashlib.sha256(strategy_name.encode()).hexdigest()
+    # Convert hex string to integer and modulo it to fit 32-bit signed int range
+    sub_seed = int(h, 16) % 1_000_000
+    return (base_seed + sub_seed) & 0x7FFF_FFFF
 
 
 class EnsembleBuilder:

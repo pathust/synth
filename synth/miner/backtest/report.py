@@ -76,11 +76,12 @@ class BacktestReport:
     def print_summary(self, scan_results: list[dict]) -> None:
         """Print a summary table to console."""
         rankings = self.generate_rankings(scan_results)
+        metric = scan_results[0].get("metric", "Score") if scan_results else "Score"
 
         print("\n" + "=" * 70)
         print("BEST STRATEGY PER ASSET × FREQUENCY")
         print("=" * 70)
-        print(f"{'Asset':<10} {'Freq':<6} {'Strategy':<25} {'Avg CRPS':<12} {'Runs'}")
+        print(f"{'Asset':<10} {'Freq':<6} {'Strategy':<25} {f'Avg {metric}':<12} {'Runs'}")
         print("-" * 70)
         for key in sorted(rankings["per_asset_best"].keys()):
             r = rankings["per_asset_best"][key]
@@ -95,7 +96,7 @@ class BacktestReport:
             print(f"\n{'='*50}")
             print(f"OVERALL STRATEGY RANKING — {freq.upper()} frequency")
             print(f"{'='*50}")
-            print(f"{'Rank':<6} {'Strategy':<25} {'Avg CRPS':<12} {'Assets'}")
+            print(f"{'Rank':<6} {'Strategy':<25} {f'Avg {metric}':<12} {'Assets'}")
             print("-" * 50)
             for i, r in enumerate(ranked):
                 print(

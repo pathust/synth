@@ -54,7 +54,7 @@ class CRPSEvaluator(BaseEvaluator):
         for interval_name, interval_seconds in scoring_intervals.items():
             interval_steps = get_interval_steps(interval_seconds, time_increment)
             absolute_price = interval_name.endswith("_abs")
-            is_gap = interval_name.endswith("_gap")
+            is_gap = interval_name.endswith("_gap") or interval_name.endswith("_gaps")
 
             if absolute_price:
                 while (
@@ -167,8 +167,33 @@ def compute_es(predictions: np.ndarray, alpha: float = 0.05) -> float:
     return float(np.mean(tail))
 
 
+def compute_dir_acc(predictions: np.ndarray, truth: np.ndarray) -> float:
+    """Directional Accuracy: Percentage of correctly predicted price directions."""
+    if predictions is None or truth is None:
+        return 0.0
+    pred = np.asarray(predictions, dtype=float)
+    obs = np.asarray(truth, dtype=float).ravel()
+    if pred.ndim == 2:
+        pred = np.mean(pred, axis=0)
+    n = min(pred.shape[0], obs.shape[0])
+    if n < 2:
+        return 0.0
+    
+    pred_dir = np.sign(np.diff(pred[:n]))
+    obs_dir = np.sign(np.diff(obs[:n]))
+    
+    # Filter out zero changes to avoid noise in accuracy
+    mask = (obs_dir != 0)
+    if not np.any(mask):
+        return 0.0
+    
+    matches = (pred_dir[mask] == obs_dir[mask])
+    return float(np.mean(matches))
+
+
 METRICS = {
     "CRPS": lambda p, y: compute_crps_score(p, y),
     "MAE": compute_mae,
     "RMSE": compute_rmse,
+    "DIR_ACC": compute_dir_acc,
 }

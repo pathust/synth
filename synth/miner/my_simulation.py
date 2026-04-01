@@ -157,8 +157,11 @@ def simulate_crypto_price_paths(
     # Force 30 days of window data by default to give enough context for models like GARCH
     window_days = 30
     
+    # Determine frequency based on time_increment to pass to UnifiedDataLoader
+    frequency = "high" if time_increment == 60 else ("low" if time_increment == 300 else None)
+    
     # 1. Fetch strictly OOS dictionary
-    filter_prices_dict = _unified_loader.get_historical_dict(asset, start_time, window_days)
+    filter_prices_dict = _unified_loader.get_historical_dict(asset, start_time, window_days, frequency=frequency)
 
     if not filter_prices_dict:
         print(f"[ERROR] No historical prices before start_time={start_time} for {asset} within {window_days} days.")
