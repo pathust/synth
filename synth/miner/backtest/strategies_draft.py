@@ -57,8 +57,8 @@ def apply_tune_regimes_to_routing(
     """
     Mutate doc['routing'] in place. Only entries with use_regimes + regime_results are applied.
 
-    When multiple tuning runs exist for the same asset×frequency (e.g. --tune-top-k > 1),
-    only results with matching rank_slot are applied (default: leader from scan).
+    When multiple tuning runs exist for the same asset×frequency (e.g. one row per strategy),
+    only results with matching rank_slot are applied (default: 1).
 
     Returns number of regime cells updated.
     """
@@ -95,7 +95,7 @@ def apply_tune_regimes_to_routing(
                     {
                         "name": strat,
                         "weight": 1.0,
-                        "params": params,
+                        "params": copy.deepcopy(params),
                     }
                 ]
             }
@@ -180,4 +180,106 @@ def write_strategies_draft_yaml(
         f.write(body)
 
     print(f"\n[Draft] Wrote strategies draft: {out}")
+    return str(out)
+
+
+def write_strategies_draft_from_regime_winners(
+    per_regime_winners: dict[str, Any],
+    *,
+    base_path: Optional[Path | str] = None,
+    out_path: Optional[Path | str] = None,
+    result_dir: str = "result",
+) -> Optional[str]:
+    """
+    Write draft YAML from ``per_regime_winners`` (best strategy + params per regime cell).
+
+    Structure: ``winners[asset][frequency][regime]`` → ``{strategy, best_score, best_params}``.
+    Regime labels are mapped with ``regime_label_to_yaml_key`` (pattern bullish→bull, …;
+    production labels already match ``strategies.yaml``).
+    """
+    try:
+        import yaml
+    except Exception:
+        print("[Draft] PyYAML not available; skip strategies draft export.")
+        return None
+
+    if not per_regime_winners:
+        print("[Draft] No per_regime_winners; skip.")
+        return None
+
+    base = Path(base_path) if base_path else _default_strategies_yaml_path()
+    if not base.is_file():
+        print(f"[Draft] Base file not found: {base}; skip.")
+        return None
+
+    with open(base, encoding="utf-8") as f:
+        doc = yaml.safe_load(f)
+    if not isinstance(doc, dict):
+        print("[Draft] Invalid YAML root; skip.")
+        return None
+
+    patched = copy.deepcopy(doc)
+    routing = patched.setdefault("routing", {})
+    n = 0
+    for asset, fm in per_regime_winners.items():
+        if not isinstance(fm, dict):
+            continue
+        for freq, regimes in fm.items():
+            if not isinstance(regimes, dict):
+                continue
+            for regime, detail in regimes.items():
+                if not isinstance(detail, dict):
+                    continue
+                yaml_key = regime_label_to_yaml_key(str(regime))
+                if not yaml_key:
+                    print(
+                        f"[Draft] Skip unknown regime label {regime!r} for "
+                        f"{asset}/{freq} (not in YAML taxonomy)."
+                    )
+                    continue
+                name = detail.get("strategy")
+                if not name:
+                    continue
+                params = detail.get("best_params") or {}
+                if not isinstance(params, dict):
+                    params = {}
+                routing.setdefault(asset, {}).setdefault(freq, {})[yaml_key] = {
+                    "models": [
+                        {"name": str(name), "weight": 1.0, "params": copy.deepcopy(params)}
+                    ]
+                }
+                n += 1
+
+    if n == 0:
+        print("[Draft] No regime cells in per_regime_winners; skip file.")
+        return None
+
+    patched["updated_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
+        "+00:00", "Z"
+    )
+
+    out: Path
+    if out_path:
+        out = Path(out_path)
+    else:
+        Path(result_dir).mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        out = Path(result_dir) / f"strategies_draft_regime_winners_{stamp}.yaml"
+
+    header = (
+        "# DRAFT — built from per_regime_winners (best strategy per regime after comparing tuned scores).\n"
+        f"# Patched {n} regime cell(s).\n"
+        f"# Base: {base}\n\n"
+    )
+    body = yaml.safe_dump(
+        patched,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(header)
+        f.write(body)
+    print(f"\n[Draft] Wrote regime-winner strategies draft: {out}")
     return str(out)

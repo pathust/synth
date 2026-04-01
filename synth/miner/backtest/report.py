@@ -73,28 +73,65 @@ class BacktestReport:
             "per_frequency_rankings": freq_rankings,
         }
 
-    def ranked_strategies_for_asset_freq(
-        self,
-        scan_results: list[dict],
-        asset: str,
-        frequency: str,
-        top_k: int = 1,
-    ) -> list[dict]:
+    @staticmethod
+    def build_per_regime_winners(tuning_results: list[dict]) -> dict:
         """
-        Strategies for one (asset, frequency), sorted by avg_score (lower is better for CRPS).
+        After tuning multiple strategies with ``use_regimes`` + ``regime_results``, pick
+        the lowest ``best_score`` per (asset, frequency, regime).
+        """
+        from collections import defaultdict
 
-        Used after a full scan to tune the top-K candidates with grid search (fairer than
-        tuning only #1 at default params while comparing at default params in the scan).
-        """
-        rows = [
-            r
-            for r in scan_results
-            if r.get("asset") == asset
-            and r.get("frequency") == frequency
-            and float(r.get("avg_score", float("inf"))) < float("inf")
-        ]
-        rows.sort(key=lambda r: float(r["avg_score"]))
-        return rows[: max(1, top_k)]
+        candidates: dict[tuple[str, str, str], list[tuple[str, float, dict]]] = defaultdict(
+            list
+        )
+        for tr in tuning_results:
+            if not tr.get("use_regimes") or not tr.get("regime_results"):
+                continue
+            asset = tr.get("asset")
+            freq = tr.get("frequency")
+            strat = tr.get("strategy")
+            if not asset or not freq or not strat:
+                continue
+            for regime, res in tr["regime_results"].items():
+                if not isinstance(res, dict):
+                    continue
+                score = res.get("best_score")
+                if score is None or score == float("inf"):
+                    continue
+                params = res.get("best_params")
+                if params is None:
+                    params = {}
+                candidates[(asset, freq, str(regime))].append(
+                    (strat, float(score), params)
+                )
+
+        out: dict[str, dict[str, dict[str, dict]]] = {}
+        for (asset, freq, regime), items in candidates.items():
+            if not items:
+                continue
+            best_strat, best_score, best_params = min(items, key=lambda x: x[1])
+            out.setdefault(asset, {}).setdefault(freq, {})[regime] = {
+                "strategy": best_strat,
+                "best_score": best_score,
+                "best_params": best_params,
+            }
+        return out
+
+    def print_per_regime_winners(self, winners: dict) -> None:
+        """Print table of best strategy per asset × frequency × regime."""
+        if not winners:
+            return
+        print("\n" + "=" * 70)
+        print("BEST STRATEGY PER REGIME (lowest tuned score in bucket)")
+        print("=" * 70)
+        for asset in sorted(winners.keys()):
+            for freq in sorted(winners[asset].keys()):
+                for regime, detail in sorted(winners[asset][freq].items()):
+                    print(
+                        f"\n  {asset}  {freq}  {regime}: "
+                        f"{detail.get('strategy')}  "
+                        f"(score={detail.get('best_score'):.4f})"
+                    )
 
     def print_summary(self, scan_results: list[dict]) -> None:
         """Print a summary table to console."""
@@ -132,6 +169,7 @@ class BacktestReport:
         self,
         scan_results: list[dict],
         tuning_results: Optional[list[dict]] = None,
+        per_regime_winners: Optional[dict] = None,
         filename: Optional[str] = None,
     ) -> str:
         """
@@ -160,6 +198,8 @@ class BacktestReport:
         }
         if tuning_results:
             export["tuning_results"] = tuning_results
+        if per_regime_winners:
+            export["per_regime_winners"] = per_regime_winners
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(export, f, indent=2, default=str)

@@ -1,32 +1,26 @@
 """
-run_strategy_scan.py — Auto-scan all strategies for all assets/frequencies.
+run_strategy_scan.py — Scan all strategies, then optional per-regime tuning.
 
-One process always runs: scan_all → print_summary → optional export.
-Adding --tune-best runs grid search *after* the same scan (see --tune-top-k). Add
---tune-regimes to grid-search per production regime (``detect_regime``: crypto high vs low,
-gold BBW, equity clock). Use --tune-regimes-pattern for legacy bullish/bearish/neutral on 1m.
-Skip --tune-best if you only want rankings without tuning (faster).
+Flow:
 
-Why scan before tune: tuning every strategy on a full grid is usually too expensive; the
-scan picks a shortlist. For a fairer final pick, use --tune-top-k 3 to tune the top 3
-scan leaders per asset×frequency, then compare tuned scores in tuning_results.
+1. **scan_all** — every compatible strategy × asset × frequency; random dates in ``window_days``.
+2. If **--tune-best** (requires **--tune-regimes**): for each (asset, frequency), tune **every**
+   eligible strategy with production regime buckets (or **--tune-regimes-pattern**), then
+   **per_regime_winners** picks the best strategy per regime (lowest tuned score).
+
+Export JSON includes ``per_regime_winners`` when tuning ran. Use **--write-strategies-draft**
+for ``strategies_draft_regime_winners_*.yaml``.
 
 Examples:
-    # Full default grid: all LOW pairs first, then all HIGH (no --assets / --frequencies)
     PYTHONPATH=. uv run python -m synth.miner.run_strategy_scan --scan-all-default
 
-    # Scan only (leaderboard, no tuning)
-    PYTHONPATH=. uv run python -m synth.miner.run_strategy_scan --assets BTC --frequencies high
-
-    # Scan + tune + optional draft YAML (copy of strategies.yaml, only tuned regimes patched)
     PYTHONPATH=. uv run python -m synth.miner.run_strategy_scan \\
-        --assets BTC --frequencies high --tune-best --tune-regimes \\
-        --write-strategies-draft --result-dir result/btc_high
+        --scan-all-default --tune-best --tune-regimes \\
+        --write-strategies-draft --result-dir result/full_tune
 """
 
 from __future__ import annotations
 
-import argparse
 import sys
 import os
 
@@ -35,11 +29,24 @@ sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 )
 
+# Importing backtest.runner pulls bittensor, which handles global --help before our argparse.
+_SHOW_HELP = False
+if __name__ == "__main__" and (
+    "--help" in sys.argv or "-h" in sys.argv
+):
+    _SHOW_HELP = True
+    sys.argv = [a for a in sys.argv if a not in ("--help", "-h")]
+
+import argparse
+
 from synth.miner.strategies import StrategyRegistry
 from synth.miner.backtest.runner import BacktestRunner
 from synth.miner.backtest.tuner import GridSearchTuner
 from synth.miner.backtest.report import BacktestReport
-from synth.miner.backtest.strategies_draft import write_strategies_draft_yaml
+from synth.miner.backtest.strategies_draft import (
+    write_strategies_draft_from_regime_winners,
+    write_strategies_draft_yaml,
+)
 
 
 # Default asset lists per frequency
@@ -54,12 +61,10 @@ def _full_default_scan_pairs() -> tuple[list[str], list[tuple[str, str]]]:
     """
     Sequential scan grid from synth.validator.prompt_config:
 
-    - **low**: ``LOW_FREQUENCY.asset_list`` (nine tickers including equities)
-    - **high**: ``HIGH_FREQUENCY.asset_list`` (BTC, ETH, XAU, SOL)
+    - **low**: ``LOW_FREQUENCY.asset_list``
+    - **high**: ``HIGH_FREQUENCY.asset_list``
 
-    Order: **low block first** (5m / LOW prompt config), **then high block** (1m / HIGH).
-    Data per pair: ``run_single`` → ``fetch_price_data(asset, time_increment)`` with
-    ``time_increment`` 300 (low) or 60 (high) — aligned with validator prompts.
+    Order: low block → high block.
     """
     from synth.validator.prompt_config import HIGH_FREQUENCY, LOW_FREQUENCY
 
@@ -72,17 +77,30 @@ def _full_default_scan_pairs() -> tuple[list[str], list[tuple[str, str]]]:
     return assets, pairs
 
 
+def _strategies_for_asset_freq(
+    registry: StrategyRegistry,
+    asset: str,
+    frequency: str,
+    *,
+    skip_ensemble: bool = True,
+):
+    """All registered strategies for ``asset`` that support ``frequency``."""
+    strategies = registry.get_for_asset(asset)
+    if skip_ensemble:
+        strategies = [s for s in strategies if s.name != "ensemble_weighted"]
+    return [s for s in strategies if s.supports_frequency(frequency)]
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Scan all strategies × assets × frequencies"
+        description="Scan all strategies × assets × frequencies; optional per-regime tuning"
     )
     parser.add_argument(
         "--scan-all-default",
         action="store_true",
         help=(
-            "Run the full default grid from prompt_config without --assets/--frequencies: "
-            "for each asset in LOW_FREQUENCY.asset_list (low / 5m), then for each asset in "
-            "HIGH_FREQUENCY.asset_list (high / 1m). Order: low block → high block."
+            "Full grid from prompt_config: each LOW_FREQUENCY asset (low), then each "
+            "HIGH_FREQUENCY asset (high). Ignores --assets / --frequencies."
         ),
     )
     parser.add_argument(
@@ -96,19 +114,19 @@ def main():
         nargs="+",
         default=["low"],
         choices=["high", "low"],
-        help="Frequency labels to scan (ignored when --scan-all-default is set)",
+        help="Frequency labels (ignored when --scan-all-default is set)",
     )
     parser.add_argument(
         "--num-runs",
         type=int,
         default=5,
-        help="Number of random backtest dates per strategy",
+        help="Random backtest dates per run / regime bucket size target",
     )
     parser.add_argument(
         "--num-sims",
         type=int,
         default=100,
-        help="Number of simulation paths per run",
+        help="Simulation paths per run",
     )
     parser.add_argument(
         "--seed", type=int, default=42, help="Random seed"
@@ -122,14 +140,10 @@ def main():
     parser.add_argument(
         "--tune-best",
         action="store_true",
-        help="Run GridSearch after scanning on the top --tune-top-k strategies per asset×frequency",
-    )
-    parser.add_argument(
-        "--tune-top-k",
-        type=int,
-        default=3t,
-        metavar="K",
-        help="With --tune-best, grid-search the K best strategies per asset×frequency (default: 1)",
+        help=(
+            "After scan: tune every eligible strategy per (asset, frequency) with regime "
+            "buckets; then select best strategy per regime. Requires --tune-regimes."
+        ),
     )
     parser.add_argument(
         "--metric",
@@ -146,8 +160,7 @@ def main():
         "--tune-regimes",
         action="store_true",
         help=(
-            "Tune per regime using date buckets (default: production detect_regime — "
-            "crypto bull/high_vol/ranging, gold trending/mean_reverting, equity sessions)."
+            "Required with --tune-best: production detect_regime buckets (crypto / gold / equity)."
         ),
     )
     parser.add_argument(
@@ -164,18 +177,16 @@ def main():
         default=None,
         metavar="N",
         help=(
-            "With --tune-regimes (production mode), sample N random candidate dates per "
-            "asset×frequency to fill regime buckets (default: max(2500, num_runs*150); "
-            "raise for rare buckets e.g. equity earnings)."
+            "Sample N random candidate dates per asset×frequency for regime buckets "
+            "(default: max(2500, num_runs*150))."
         ),
     )
     parser.add_argument(
         "--write-strategies-draft",
         action="store_true",
         help=(
-            "After tuning, write result_dir/strategies_draft_<timestamp>.yaml: copy of "
-            "strategies.yaml with only tune-regimes cells patched (rank_slot=1). "
-            "Requires --tune-best and --tune-regimes."
+            "Write strategies_draft_regime_winners_*.yaml from per_regime_winners when tuning; "
+            "otherwise legacy patch from tuning_results if any."
         ),
     )
     parser.add_argument(
@@ -183,33 +194,35 @@ def main():
         default=None,
         help="Path to base strategies.yaml (default: synth/miner/config/strategies.yaml)",
     )
+    if _SHOW_HELP:
+        parser.print_help()
+        raise SystemExit(0)
     args = parser.parse_args()
+
+    if args.tune_best and not args.tune_regimes:
+        raise SystemExit("--tune-best requires --tune-regimes (per-regime tuning only)")
 
     if args.scan_all_default:
         if args.assets is not None:
             print(
-                "[scan-all-default] Ignoring --assets; using HIGH/LOW lists from "
+                "[scan-all-default] Ignoring --assets; using LOW then HIGH lists from "
                 "synth.validator.prompt_config"
             )
         if "--frequencies" in sys.argv:
             print(
-                "[scan-all-default] Ignoring --frequencies; using high (HIGH list) "
-                "then low (LOW list)"
+                "[scan-all-default] Ignoring --frequencies; using low block then high block"
             )
 
     # ── 1. Discover strategies ──
     registry = StrategyRegistry()
     registry.auto_discover()
 
-    # ── 2. Determine assets and optional explicit (asset, freq) pairs ──
+    # ── 2. Assets and (asset, freq) pairs ──
     scan_pairs: list[tuple[str, str]] | None = None
     if args.scan_all_default:
         assets, scan_pairs = _full_default_scan_pairs()
         tune_pairs = scan_pairs
-        print(
-            "Mode: --scan-all-default (high=HIGH_FREQUENCY.asset_list, "
-            "low=LOW_FREQUENCY.asset_list)"
-        )
+        print("Mode: --scan-all-default (low block → high block)")
     else:
         if args.assets:
             assets = args.assets
@@ -225,12 +238,12 @@ def main():
     print(f"Assets: {assets}")
     print(f"Frequencies: {args.frequencies}" + (" (fixed by --scan-all-default)" if args.scan_all_default else ""))
     if scan_pairs is not None:
-        print(f"Scan order: {len(scan_pairs)} pairs (low block → high block)")
+        print(f"Scan order: {len(scan_pairs)} pairs (low → high)")
 
     print(f"Strategies: {registry.list_all()}")
     print(f"Metric: {args.metric}")
 
-    # ── 3. Run scan ──
+    # ── 3. Scan ──
     runner = BacktestRunner(metric=args.metric)
     scan_results = runner.scan_all(
         assets=assets,
@@ -247,82 +260,72 @@ def main():
     report = BacktestReport(result_dir=args.result_dir)
     report.print_summary(scan_results)
 
-    # ── 5. Tune top-K strategies per asset×frequency (after scan shortlist) ──
+    # ── 5. Tune: all strategies × (asset, freq), regime grid, then aggregate winners ──
     tuning_results = []
     if args.tune_best:
-        if args.tune_top_k < 1:
-            raise SystemExit("--tune-top-k must be >= 1")
         tuner = GridSearchTuner(runner)
-
+        print(
+            "\n[Tuner] Per-regime sweep: every eligible strategy per asset×frequency "
+            "(then per_regime_winners)"
+        )
         for asset, freq in tune_pairs:
-            ranked = report.ranked_strategies_for_asset_freq(
-                scan_results, asset, freq, top_k=args.tune_top_k
-            )
-            if not ranked:
+            strats = _strategies_for_asset_freq(registry, asset, freq)
+            if not strats:
                 continue
-            for slot, r in enumerate(ranked, start=1):
-                strat_name = r["strategy"]
-                strategy = registry.get(strat_name)
-                if not strategy.get_param_grid():
-                    print(
-                        f"\n[Tune] Skipping {strat_name} ({asset}/{freq}) "
-                        f"[{slot}/{len(ranked)}] — no param_grid defined"
-                    )
-                    continue
-
-                if args.tune_regimes:
-                    print(
-                        f"\n[Tuner] Grid Search theo Regime: {strat_name} "
-                        f"({asset}/{freq}) [{slot}/{len(ranked)}]"
-                    )
-                    tune_result = tuner.run(
-                        strategy,
-                        asset,
-                        freq,
-                        num_runs=max(args.num_runs, 3),
-                        num_sims=args.num_sims,
-                        seed=args.seed,
-                        window_days=args.window_days,
-                        use_regimes=True,
-                        regime_date_mode=(
-                            "pattern" if args.tune_regimes_pattern else "production"
-                        ),
-                        production_regime_pool_size=args.production_regime_pool_size,
-                    )
-                else:
-                    print(
-                        f"\n[Tuner] Grid Search chung: {strat_name} "
-                        f"({asset}/{freq}) [{slot}/{len(ranked)}]"
-                    )
-                    tune_result = tuner.run(
-                        strategy,
-                        asset,
-                        freq,
-                        num_runs=max(args.num_runs, 3),
-                        num_sims=args.num_sims,
-                        seed=args.seed,
-                        window_days=args.window_days,
-                    )
+            print(f"\n[Tuner] {asset} × {freq}: {len(strats)} strategies")
+            for strategy in strats:
+                print(
+                    f"\n[Tuner] Regime grid: {strategy.name} ({asset}/{freq})"
+                )
+                tune_result = tuner.run(
+                    strategy,
+                    asset,
+                    freq,
+                    num_runs=max(args.num_runs, 3),
+                    num_sims=args.num_sims,
+                    seed=args.seed,
+                    window_days=args.window_days,
+                    use_regimes=True,
+                    regime_date_mode=(
+                        "pattern" if args.tune_regimes_pattern else "production"
+                    ),
+                    production_regime_pool_size=args.production_regime_pool_size,
+                )
                 tuning_results.append(
                     {
                         "asset": asset,
                         "frequency": freq,
-                        "rank_slot": slot,
-                        "scan_avg_score": r["avg_score"],
+                        "tune_mode": "per_regime_all_strategies",
+                        "strategy": strategy.name,
                         **tune_result,
                     }
                 )
 
+    per_regime_winners: dict | None = None
+    if tuning_results:
+        per_regime_winners = BacktestReport.build_per_regime_winners(tuning_results)
+        if per_regime_winners:
+            report.print_per_regime_winners(per_regime_winners)
+
     # ── 6. Export ──
-    report.export_json(scan_results, tuning_results)
+    report.export_json(
+        scan_results, tuning_results, per_regime_winners=per_regime_winners
+    )
 
     if args.write_strategies_draft:
-        write_strategies_draft_yaml(
-            tuning_results,
-            base_path=args.strategies_yaml_base,
-            result_dir=args.result_dir,
-            rank_slot=1,
-        )
+        if per_regime_winners:
+            write_strategies_draft_from_regime_winners(
+                per_regime_winners,
+                base_path=args.strategies_yaml_base,
+                result_dir=args.result_dir,
+            )
+        else:
+            write_strategies_draft_yaml(
+                tuning_results,
+                base_path=args.strategies_yaml_base,
+                result_dir=args.result_dir,
+                rank_slot=1,
+            )
 
     print("\n✅ Strategy scan complete!")
 
