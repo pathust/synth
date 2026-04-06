@@ -30,6 +30,18 @@ def get_future_weekly_factors(start_time, steps, time_increment, profile_map):
         factors.append(val)
     return np.array(factors)
 
+def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
+    is_high = time_increment <= 60
+    if asset == "GOOGLX":
+        lookback = [30, 45, 60] if not is_high else [14, 30]
+        return {"lookback_days": lookback, "regime_lookback": [10, 12, 15], "trending_vol_mult": [1.2, 1.3, 1.4]}
+    elif asset == "TSLAX":
+        lookback = [45, 60, 90] if not is_high else [14, 30]
+        return {"lookback_days": lookback, "regime_lookback": [10, 12, 15], "trending_vol_mult": [1.2, 1.25, 1.3]}
+    else:
+        lookback = [45, 60, 90] if not is_high else [14, 30, 45]
+        return {"lookback_days": lookback, "regime_lookback": [15, 20, 25], "trending_vol_mult": [1.1, 1.2, 1.3]}
+
 def simulate_weekly_regime_switching(
     prices_dict,
     asset,

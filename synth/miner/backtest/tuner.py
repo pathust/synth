@@ -144,7 +144,7 @@ class GridSearchTuner:
         param_grid,
         max_combinations: Optional[int] = None,
     ):
-        grid = param_grid or strategy.get_param_grid()
+        grid = param_grid or strategy.get_param_grid(frequency=frequency, asset=asset)
         if not grid:
             print(
                 f"[Tuner] No param_grid for {strategy.name}, "

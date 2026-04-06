@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Dict
 
-from synth.miner.strategies.pattern_detector import (
+from synth.miner.core.pattern_detector import (
     detect_pattern as _detect_pattern_v1,
 )
-from synth.miner.strategies.pattern_detector_v2 import (
+from synth.miner.core.pattern_detector_v2 import (
     detect_pattern as _detect_pattern_v2,
 )
 

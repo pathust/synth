@@ -81,10 +81,39 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
         config["vol_multiplier"] = 0.95
 
     else:
-        # Fallback cho các đồng khác nếu sau này bạn thêm vào
         config["lookback_days"] = 3.0
 
     return config
+
+def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
+    asset_upper = asset.upper()
+    is_high_freq = time_increment <= 60
+    
+    grid = {}
+    if asset_upper == "BTC":
+        grid["lookback_days"] = [2.0, 3.0, 4.0] if is_high_freq else [20.0, 30.0, 45.0]
+        grid["vol_multiplier"] = [0.95, 1.0, 1.05]
+    elif asset_upper == "ETH":
+        grid["lookback_days"] = [2.0, 3.0, 4.0] if is_high_freq else [20.0, 30.0, 45.0]
+        grid["vol_multiplier"] = [1.0, 1.02, 1.05]
+    elif asset_upper == "SOL":
+        grid["lookback_days"] = [1.5, 2.5, 3.5] if is_high_freq else [15.0, 20.0, 30.0]
+        grid["vol_multiplier"] = [1.02, 1.08, 1.15]
+    elif asset_upper == "XAU":
+        grid["lookback_days"] = [3.0, 3.9, 5.0] if is_high_freq else [25.0, 30.0, 40.0]
+        grid["vol_multiplier"] = [0.85, 0.95, 1.0]
+    elif asset_upper in ["NVDAX", "TSLAX", "GOOGLX"]:
+        grid["lookback_days"] = [15.0, 20.0, 25.0]
+        grid["vol_multiplier"] = [1.0, 1.05, 1.10]
+    elif asset_upper in ["AAPLX", "SPYX"]:
+        grid["lookback_days"] = [20.0, 30.0, 45.0]
+        grid["vol_multiplier"] = [0.90, 0.95, 1.0]
+    else:
+        grid["lookback_days"] = [2.0, 3.0, 4.0]
+        grid["vol_multiplier"] = [0.95, 1.0, 1.05]
+
+    return grid
+
 
 # ==========================================
 # 🛠️ 2. CORE FUNCTIONS

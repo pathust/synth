@@ -32,4 +32,8 @@ validator:
 		--netuid $(netuid) \
 		--logging.$(logging_level) \
 		--neuron.axon_off true \
-		--ewma.window_days $(ewma_window_days) \
+		--ewma.window_days $(ewma_window_days)
+
+# Fetch daemon (price, validation scores, leaderboard) - chạy ngầm với pm2
+fetch:
+	pm2 start fetch.config.js

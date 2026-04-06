@@ -30,6 +30,7 @@ from synth.validator.response_validation_v2 import validate_responses
 
 from synth.miner.data.dataloader import UnifiedDataLoader
 from synth.miner.regimes.detector import detect_regime
+from synth.miner.constants import HISTORY_WINDOW_DAYS
 
 
 # ── Simulator function registry (same as simulations_new_v3.py) ─────
@@ -43,9 +44,9 @@ from synth.miner.core.stock_simulator import simulate_seasonal_stock as sim_seas
 from synth.miner.core.stock_simulator_v2 import simulate_weekly_seasonal_optimized as sim_weekly_stock
 
 # Strategies (v4 family)
-from synth.miner.strategies.grach_simulator_v4 import simulate_single_price_path_with_garch as sim_garch_v4
-from synth.miner.strategies.grach_simulator_v4_1 import simulate_single_price_path_with_garch as sim_garch_v4_1
-from synth.miner.strategies.grach_simulator_v4_2 import simulate_single_price_path_with_garch as sim_garch_v4_2
+from synth.miner.core.grach_simulator_v4 import simulate_single_price_path_with_garch as sim_garch_v4
+from synth.miner.core.grach_simulator_v4_1 import simulate_single_price_path_with_garch as sim_garch_v4_1
+from synth.miner.core.grach_simulator_v4_2 import simulate_single_price_path_with_garch as sim_garch_v4_2
 
 
 SIMULATOR_FUNCTIONS: dict[str, Callable] = {
@@ -156,20 +157,21 @@ def generate_simulations(
     try:
         loader = UnifiedDataLoader()
         freq_label = "high" if time_length == 3600 else "low"
+        # Already hits MySQL via DataHandler.load_price_data (5m or 1m→5m aggregate).
+        # Empty dict = no candles in [start_time - window_days, start_time) or missing table.
         hist = loader.get_historical_dict(
-            asset, start_time, window_days=30, frequency=freq_label
+            asset, start_time, window_days=HISTORY_WINDOW_DAYS, frequency=freq_label
         ) or {}
-        if hist:
-            rr = detect_regime(
-                asset,
-                start_time,
-                time_increment,
-                time_length,
-                hist,
-            )
-            market_regime = rr.regime
-            regime_asset_type = rr.asset_type
-            regime_confidence = rr.confidence
+        rr = detect_regime(
+            asset,
+            start_time,
+            time_increment,
+            time_length,
+            hist,
+        )
+        market_regime = rr.regime
+        regime_asset_type = rr.asset_type
+        regime_confidence = rr.confidence
     except Exception:
         market_regime = None
 
@@ -287,6 +289,7 @@ def _run_ensemble_via_builder(
                 max_data_points=None,
                 seed=seed,
                 miner_start_time=start_time,
+                **kwargs,
             )
         return wrapper
 

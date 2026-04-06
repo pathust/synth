@@ -22,7 +22,6 @@ from typing import Optional
 
 from synth.miner.strategies.base import BaseStrategy, get_asset_type
 
-
 class StrategyRegistry:
     _type_regime_map: dict[tuple[str, str], list[type]] = {}
 

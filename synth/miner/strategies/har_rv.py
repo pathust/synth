@@ -12,7 +12,6 @@ from synth.miner.core.HAR_RV_simulatior import (
     simulate_single_price_path_with_har_garch,
 )
 
-
 class HarRvStrategy(BaseStrategy):
     name = "har_rv"
     description = (
@@ -24,9 +23,15 @@ class HarRvStrategy(BaseStrategy):
     default_params = {
         "lookback_days": 30,
     }
-    param_grid = {
-        "lookback_days": [21, 30, 45, 60],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        grid = {}
+        if is_high:
+            grid["lookback_days"] = [14, 21, 30]
+        else:
+            grid["lookback_days"] = [30, 45, 60]
+        return grid
 
     def simulate(
         self,
@@ -49,6 +54,5 @@ class HarRvStrategy(BaseStrategy):
             seed=seed,
             **params,
         )
-
 
 strategy = HarRvStrategy()

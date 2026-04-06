@@ -38,19 +38,18 @@ from synth.miner.core.grach_simulator_v2 import (
     simulate_single_price_path_with_garch as garch_v2,
 )
 
-from synth.miner.strategies.grach_simulator_v4 import (
+from synth.miner.core.grach_simulator_v4 import (
     simulate_single_price_path_with_garch as garch_v4,
 )
-from synth.miner.strategies.grach_simulator_v4_1 import (
+from synth.miner.core.grach_simulator_v4_1 import (
     simulate_single_price_path_with_garch as garch_v4_1,
 )
-from synth.miner.strategies.grach_simulator_v4_2 import (
+from synth.miner.core.grach_simulator_v4_2 import (
     simulate_single_price_path_with_garch as garch_v4_2,
 )
 from synth.miner.core.HAR_RV_simulatior import (
     simulate_single_price_path_with_har_garch as har_rv,
 )
-
 
 # ── Pool of models theo asset ─────────────────────────────────────────
 
@@ -71,14 +70,12 @@ P_SIGMA = 60    # độ lệch chuẩn → có lần 50 paths, có lần 250 pat
 P_MIN   = 10    # tối thiểu 10 paths/lần
 P_MAX   = 400   # tối đa 400 paths/lần
 
-
 def _sample_n_paths(rng: np.random.Generator) -> int:
     """Sinh số paths cho 1 lần draw từ phân phối chuẩn truncated."""
     while True:
         p = int(round(rng.normal(P_MU, P_SIGMA)))
         if P_MIN <= p <= P_MAX:
             return p
-
 
 def simulate_ensemble_crypto(
     prices_dict: dict,

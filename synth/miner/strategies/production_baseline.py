@@ -27,7 +27,6 @@ from synth.miner.core.HAR_RV_simulatior import (
 from synth.miner.core.stock_simulator import simulate_seasonal_stock
 from synth.miner.core.stock_simulator_v2 import simulate_weekly_seasonal_optimized
 
-
 def _get_production_fn_chain(asset: str) -> list[tuple]:
     """
     Return the exact same fallback chain as generate_simulations().
@@ -52,7 +51,6 @@ def _get_production_fn_chain(asset: str) -> list[tuple]:
         (har_garch, 100000),
         (garch_v1, 500),
     ]
-
 
 class ProductionBaselineStrategy(BaseStrategy):
     name = "production_baseline"
@@ -108,6 +106,5 @@ class ProductionBaselineStrategy(BaseStrategy):
         raise RuntimeError(
             f"All production fallback functions failed for {asset}"
         )
-
 
 strategy = ProductionBaselineStrategy()

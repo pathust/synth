@@ -12,7 +12,6 @@ from synth.miner.core.garch_simulator import (
     simulate_single_price_path_with_garch,
 )
 
-
 class GarchV1Strategy(BaseStrategy):
     name = "garch_v1"
     description = "GARCH(p,q) with Student-t innovations (original simulator)"
@@ -23,11 +22,11 @@ class GarchV1Strategy(BaseStrategy):
         "p": 1,
         "q": 1,
     }
-    param_grid = {
-        "mean": ["Zero", "Constant"],
-        "p": [1, 2],
-        "q": [1],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        grid = {"mean": ["Zero" if is_high else "Constant", "Zero"], "p": [1, 2], "q": [1]}
+        return grid
 
     def simulate(
         self,
@@ -50,6 +49,5 @@ class GarchV1Strategy(BaseStrategy):
             seed=seed,
             **params,
         )
-
 
 strategy = GarchV1Strategy()

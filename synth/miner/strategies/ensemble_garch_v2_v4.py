@@ -16,7 +16,6 @@ import numpy as np
 from synth.miner.strategies.base import BaseStrategy
 from synth.miner.strategies.ensemble_weighted import EnsembleWeightedStrategy
 
-
 class EnsembleGarchV2V4Strategy(BaseStrategy):
     name = "ensemble_garch_v2_v4"
     description = (
@@ -27,13 +26,6 @@ class EnsembleGarchV2V4Strategy(BaseStrategy):
     supported_regimes = []
     default_params: dict = {
         "weights": [0.5, 0.5],
-    }
-    param_grid: dict = {
-        "weights": [
-            [0.5, 0.5],
-            [0.4, 0.6],
-            [0.6, 0.4],
-        ],
     }
 
     def simulate(
@@ -62,7 +54,6 @@ class EnsembleGarchV2V4Strategy(BaseStrategy):
             base_strategy_names=["garch_v2", "garch_v4"],
             **params,
         )
-
 
 strategy = EnsembleGarchV2V4Strategy()
 

@@ -48,6 +48,35 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
     #     config["vol_multiplier"] = 0.9
     return config
 
+def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
+    asset_lower = asset.lower()
+    is_crypto = asset_lower not in ["xau", "googlx", "tslax", "aaplx", "nvdax", "spyx"]
+    is_high_freq = time_increment <= 60
+    
+    grid = {}
+    if is_high_freq:
+        grid["mean_model"] = ["Zero"]
+        if is_crypto:
+            grid["lookback_days"] = [5, 7, 10]
+            grid["vol_multiplier"] = [0.9, 1.0, 1.1]
+        else:
+            grid["lookback_days"] = [10, 14, 20]
+            grid["vol_multiplier"] = [0.8, 1.0, 1.2]
+    else:
+        grid["mean_model"] = ["Zero", "Constant"]
+        if is_crypto:
+            grid["lookback_days"] = [30, 45, 60]
+            grid["vol_multiplier"] = [0.9, 1.0, 1.1]
+        else:
+            grid["lookback_days"] = [60, 90, 120]
+            grid["vol_multiplier"] = [0.8, 1.0, 1.2]
+            
+    if asset_lower == "spyx":
+        grid["vol_multiplier"] = [0.8, 0.9, 1.0]
+
+    return grid
+
+
 # ==========================================
 # 🛠️ 2. CORE FUNCTIONS
 # ==========================================

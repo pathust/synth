@@ -34,7 +34,6 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
 
     return config
 
-
 # ==========================================
 # 🛠️ 2. PHÁT HIỆN TREND & DRIFT
 # ==========================================
@@ -49,7 +48,6 @@ def detect_market_regime(returns_bps: pd.Series, window: int = 15):
     if abs(z_score) > 1.5:
         return "trending", recent_mome
     return "sideways", 0.0
-
 
 # ==========================================
 # 📈 3. MÔ PHỎNG NÂNG CAO (CÓ CHỐT CHẶN)
@@ -105,7 +103,6 @@ def simulate_paths_advanced(fitted_res, S0, steps, n_sims, config, drift_bps=0.0
     prices[:, 1:] = S0 * np.exp(cum_log_ret_clipped).T
 
     return prices
-
 
 # ==========================================
 # 🚀 4. HÀM ĐIỀU KHIỂN CHÍNH

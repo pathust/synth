@@ -26,7 +26,7 @@ from typing import Any, Optional, Callable
 
 from synth.miner.data_handler import DataHandler
 from synth.miner.price_aggregation import aggregate_1m_to_5m
-from synth.miner.constants import ASSETS_PERIODIC_FETCH_PRICE_DATA
+from synth.miner.constants import ASSETS_PERIODIC_FETCH_PRICE_DATA, HISTORY_WINDOW_DAYS
 
 # Global DataHandler instance (shared across simulation calls)
 # sn50 L8
@@ -146,25 +146,34 @@ def simulate_crypto_price_paths(
     time_length: int,
     num_simulations: int,
     simulate_fn: Callable,
-    max_data_points: Optional[int] = 100000,
+    max_data_points: Optional[int] = None,
     seed: Optional[int] = 42,
+    window_days: Optional[int] = None,
     **kwargs
 ) -> np.ndarray:
     """
     Load historical price data robustly using UnifiedDataLoader, 
     and dispatch to the specified strategy simulation function.
+
+    ``window_days`` defaults to ``HISTORY_WINDOW_DAYS`` so strategy lookbacks
+    (e.g. garch_v4 45d, weekly_garch_v4 up to 120d) are not truncated by the loader.
     """
-    # Force 30 days of window data by default to give enough context for models like GARCH
-    window_days = 30
-    
+    wd_kw = kwargs.pop("window_days", None)
+    if window_days is not None:
+        wd = int(window_days)
+    elif wd_kw is not None:
+        wd = int(wd_kw)
+    else:
+        wd = int(HISTORY_WINDOW_DAYS)
+
     # Determine frequency based on time_increment to pass to UnifiedDataLoader
     frequency = "high" if time_increment == 60 else ("low" if time_increment == 300 else None)
     
     # 1. Fetch strictly OOS dictionary
-    filter_prices_dict = _unified_loader.get_historical_dict(asset, start_time, window_days, frequency=frequency)
+    filter_prices_dict = _unified_loader.get_historical_dict(asset, start_time, wd, frequency=frequency)
 
     if not filter_prices_dict:
-        print(f"[ERROR] No historical prices before start_time={start_time} for {asset} within {window_days} days.")
+        print(f"[ERROR] No historical prices before start_time={start_time} for {asset} within {wd} days.")
         return None
 
     # Limit to max_data_points if requested (ascending order guaranteed by dataloader)

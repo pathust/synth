@@ -29,9 +29,9 @@ from synth.miner.core.stock_simulator import simulate_seasonal_stock as sim_seas
 from synth.miner.core.stock_simulator_v2 import simulate_weekly_seasonal_optimized as sim_weekly_stock
 
 # Strategies (v4 family)
-from synth.miner.strategies.grach_simulator_v4 import simulate_single_price_path_with_garch as sim_garch_v4
-from synth.miner.strategies.grach_simulator_v4_1 import simulate_single_price_path_with_garch as sim_garch_v4_1
-from synth.miner.strategies.grach_simulator_v4_2 import simulate_single_price_path_with_garch as sim_garch_v4_2
+from synth.miner.core.grach_simulator_v4 import simulate_single_price_path_with_garch as sim_garch_v4
+from synth.miner.core.grach_simulator_v4_1 import simulate_single_price_path_with_garch as sim_garch_v4_1
+from synth.miner.core.grach_simulator_v4_2 import simulate_single_price_path_with_garch as sim_garch_v4_2
 
 # Advanced Weekly Variants
 from synth.miner.core.stock_simulator_v3 import simulate_weekly_garch_v4 as sim_weekly_garch_v4

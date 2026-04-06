@@ -15,10 +15,12 @@ class WeeklyRegimeSwitchingStrategy(BaseStrategy):
         "trending_vol_mult": 1.2,
         "sideways_vol_mult": 0.8,
     }
-    param_grid = {
-        "lookback_days": [45, 60, 90],
-        "regime_lookback": [12, 20],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        from synth.miner.core.stock_simulator_v4 import get_optimal_param_grid
+        time_inc = 60 if frequency == "high" else 300
+        asset_val = asset if asset else "BTC"
+        return get_optimal_param_grid(asset_val, time_inc)
 
     def simulate(self, prices_dict: dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs) -> np.ndarray:
         params = self.get_default_params()

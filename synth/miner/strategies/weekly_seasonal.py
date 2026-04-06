@@ -12,7 +12,6 @@ from synth.miner.core.stock_simulator_v2 import (
     simulate_weekly_seasonal_optimized,
 )
 
-
 class WeeklySeasonalStrategy(BaseStrategy):
     name = "weekly_seasonal"
     description = (
@@ -24,9 +23,12 @@ class WeeklySeasonalStrategy(BaseStrategy):
     default_params = {
         "lookback_days": 60,
     }
-    param_grid = {
-        "lookback_days": [30, 45, 60, 90],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        if is_high:
+            return {"lookback_days": [14, 30, 45]}
+        return {"lookback_days": [45, 60, 90]}
 
     def simulate(
         self,
@@ -49,6 +51,5 @@ class WeeklySeasonalStrategy(BaseStrategy):
             seed=seed,
             **params,
         )
-
 
 strategy = WeeklySeasonalStrategy()

@@ -12,7 +12,6 @@ from synth.miner.core.grach_simulator_v2 import (
     simulate_single_price_path_with_garch,
 )
 
-
 class GarchV2Strategy(BaseStrategy):
     name = "garch_v2"
     description = (
@@ -22,10 +21,12 @@ class GarchV2Strategy(BaseStrategy):
     supported_asset_types = []
     supported_regimes = []
     default_params = {}  # uses get_optimal_config() internally
-    param_grid = {
-        "lookback_days": [7, 14, 30, 45, 60],
-        "vol_multiplier": [0.8, 0.9, 1.0, 1.1],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        from synth.miner.core.grach_simulator_v2 import get_optimal_param_grid
+        time_inc = 60 if frequency == "high" else 300
+        asset_val = asset if asset else "BTC"
+        return get_optimal_param_grid(asset_val, time_inc)
 
     def simulate(
         self,
@@ -46,6 +47,5 @@ class GarchV2Strategy(BaseStrategy):
             seed=seed,
             **kwargs,
         )
-
 
 strategy = GarchV2Strategy()

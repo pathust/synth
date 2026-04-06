@@ -10,9 +10,12 @@ class WeeklyGarchV4Strategy(BaseStrategy):
     supported_asset_types = ["equity"]
     supported_regimes = ["market_open", "overnight"]
     default_params = {"lookback_days": 90}
-    param_grid = {
-        "lookback_days": [45, 60, 90, 120],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        if is_high:
+            return {"lookback_days": [14, 30, 45]}
+        return {"lookback_days": [60, 90, 120]}
 
     def simulate(self, prices_dict: dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42, **kwargs) -> np.ndarray:
         params = self.get_default_params()

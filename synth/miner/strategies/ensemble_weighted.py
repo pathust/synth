@@ -13,7 +13,6 @@ import numpy as np
 
 from synth.miner.strategies.base import BaseStrategy
 
-
 class EnsembleWeightedStrategy(BaseStrategy):
     name = "ensemble_weighted"
     description = (
@@ -27,7 +26,6 @@ class EnsembleWeightedStrategy(BaseStrategy):
         "base_strategy_names": ["garch_v1", "garch_v2"],
         "weights": None,  # None = equal weights
     }
-    param_grid = {}  # Tuning is done on the base strategies
 
     def simulate(
         self,
@@ -130,6 +128,5 @@ class EnsembleWeightedStrategy(BaseStrategy):
             combined = combined[indices]
 
         return combined
-
 
 strategy = EnsembleWeightedStrategy()

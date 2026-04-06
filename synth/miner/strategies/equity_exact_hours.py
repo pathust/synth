@@ -14,9 +14,14 @@ class EquityExactHoursStrategy(BaseStrategy):
     supported_regimes = ["market_open", "overnight"]
     default_params = {}
 
-    param_grid = {
-        "gap_ceiling_bps": [40.0, 55.0, 80.0],
-    }
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        grid = {}
+        if is_high:
+            grid["gap_ceiling_bps"] = [40.0, 55.0]
+        else:
+            grid["gap_ceiling_bps"] = [55.0, 80.0, 100.0]
+        return grid
 
     def simulate(
         self,

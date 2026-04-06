@@ -14,10 +14,16 @@ class ArimaEquityStrategy(BaseStrategy):
     supported_regimes = ["market_open", "overnight"]
     default_params = {}
 
-    param_grid = {
-        "off_hours_vol_scale": [0.1, 0.2, 0.35],
-        "off_hours_mu_scale": [0.05, 0.1, 0.2],
-    }
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        grid = {"p": [1, 2], "q": [1]}
+        if is_high:
+            grid["lookback_days"] = [7, 14]
+            grid["off_hours_vol_scale"] = [0.1, 0.2]
+        else:
+            grid["lookback_days"] = [30, 45]
+            grid["off_hours_vol_scale"] = [0.2, 0.3]
+        return grid
 
     def simulate(
         self,

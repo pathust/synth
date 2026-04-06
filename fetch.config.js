@@ -1,10 +1,13 @@
+const path = require("path");
+
 module.exports = {
     apps: [
         {
             name: "fetch-daemon",
-            interpreter: "/home/user/synth/.venv/bin/python",
-            script: "./synth/miner/fetch_daemon.py",
-            cwd: "/home/user/synth",
+            interpreter: path.join(__dirname, ".venv", "bin", "python"),
+            script: path.join(__dirname, "synth", "miner", "fetch_daemon.py"),
+            args: "--workers 6",
+            cwd: __dirname,
             env: {
                 PYTHONPATH: ".",
             },

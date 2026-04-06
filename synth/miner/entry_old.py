@@ -27,10 +27,10 @@ from synth.validator.response_validation_v2 import validate_responses
 # ---------------------------------------------------------------------------
 STRATEGY_LIST_FOR_ASSET: dict[tuple[str, str], list[tuple[str, float]]] = {
     # HIGH
-    ("BTC", "high"): [("weekly_garch_v4", 1.0)],
-    ("ETH", "high"): [("gjr_garch", 1.0)],
-    ("XAU", "high"): [("garch_v4_2", 1.0)],
-    ("SOL", "high"): [("gjr_garch", 1.0)],
+    ("BTC", "high"): [("garch_v4", 1.0)],
+    ("ETH", "high"): [("garch_v2_1", 1.0)],
+    ("XAU", "high"): [("garch_v4", 1.0)],
+    ("SOL", "high"): [("garch_v2_1", 1.0)],
 
     # LOW
     ("BTC", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("gjr_garch", 0.3)],
@@ -194,6 +194,22 @@ def generate_simulations(
         version=version,
     )
 
+def generate_simulations_legacy(
+    simulation_input: SimulationInput,
+    asset: str = "BTC",
+    start_time: str = "",
+    time_increment: int = 300,
+    time_length: int = 86400,
+    num_simulations: int = 1,
+    seed: int = 42,
+    version: str | None = None,
+) -> dict:
+    """
+    Legacy implementation of entry_new (ensemble + sequential fallback).
+
+    Note: `generate_simulations()` is deprecated and forwards to `synth.miner.entry`.
+    Use this function only for backtesting / comparisons.
+    """
     if start_time == "":
         raise ValueError("Start time must be provided.")
 

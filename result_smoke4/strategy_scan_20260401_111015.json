@@ -1,0 +1,206 @@
+{
+  "timestamp": "2026-04-01T11:10:15.949420",
+  "rankings": {
+    "per_asset_best": {},
+    "per_frequency_rankings": {}
+  },
+  "scan_results": [],
+  "tuning_results": [
+    {
+      "strategy": "regime_switching",
+      "asset": "BTC",
+      "frequency": "high",
+      "best_params": {
+        "lookback_days": 30,
+        "trending_vol_mult": 1.0,
+        "sideways_vol_mult": 0.6
+      },
+      "best_score": 790.7444506674607,
+      "all_results": [
+        {
+          "params": {
+            "lookback_days": 14,
+            "trending_vol_mult": 1.0,
+            "sideways_vol_mult": 0.6
+          },
+          "avg_score": 914.6197127985479,
+          "median_score": 914.6197127985479,
+          "successful_runs": 1,
+          "elapsed": 1.15
+        },
+        {
+          "params": {
+            "lookback_days": 14,
+            "trending_vol_mult": 1.0,
+            "sideways_vol_mult": 0.7
+          },
+          "avg_score": 959.3745974883063,
+          "median_score": 959.3745974883063,
+          "successful_runs": 1,
+          "elapsed": 1.23
+        },
+        {
+          "params": {
+            "lookback_days": 14,
+            "trending_vol_mult": 1.1,
+            "sideways_vol_mult": 0.6
+          },
+          "avg_score": 914.6197127985479,
+          "median_score": 914.6197127985479,
+          "successful_runs": 1,
+          "elapsed": 1.23
+        },
+        {
+          "params": {
+            "lookback_days": 14,
+            "trending_vol_mult": 1.1,
+            "sideways_vol_mult": 0.7
+          },
+          "avg_score": 959.3745974883063,
+          "median_score": 959.3745974883063,
+          "successful_runs": 1,
+          "elapsed": 1.22
+        },
+        {
+          "params": {
+            "lookback_days": 30,
+            "trending_vol_mult": 1.0,
+            "sideways_vol_mult": 0.6
+          },
+          "avg_score": 790.7444506674607,
+          "median_score": 790.7444506674607,
+          "successful_runs": 1,
+          "elapsed": 1.27
+        },
+        {
+          "params": {
+            "lookback_days": 30,
+            "trending_vol_mult": 1.0,
+            "sideways_vol_mult": 0.7
+          },
+          "avg_score": 828.3310257984882,
+          "median_score": 828.3310257984882,
+          "successful_runs": 1,
+          "elapsed": 1.37
+        },
+        {
+          "params": {
+            "lookback_days": 30,
+            "trending_vol_mult": 1.1,
+            "sideways_vol_mult": 0.6
+          },
+          "avg_score": 790.7444506674607,
+          "median_score": 790.7444506674607,
+          "successful_runs": 1,
+          "elapsed": 1.36
+        },
+        {
+          "params": {
+            "lookback_days": 30,
+            "trending_vol_mult": 1.1,
+            "sideways_vol_mult": 0.7
+          },
+          "avg_score": 828.3310257984882,
+          "median_score": 828.3310257984882,
+          "successful_runs": 1,
+          "elapsed": 1.31
+        }
+      ],
+      "regime": "bull",
+      "stage": 2,
+      "stage1_best_score": 677.5061000585824
+    },
+    {
+      "strategy": "jump_diffusion",
+      "asset": "BTC",
+      "frequency": "high",
+      "best_params": {
+        "lookback_days": 30
+      },
+      "best_score": 1172.603488455004,
+      "all_results": [
+        {
+          "params": {
+            "lookback_days": 14
+          },
+          "avg_score": 1226.2355906949042,
+          "median_score": 1226.2355906949042,
+          "successful_runs": 1,
+          "elapsed": 1.09
+        },
+        {
+          "params": {
+            "lookback_days": 30
+          },
+          "avg_score": 1172.603488455004,
+          "median_score": 1172.603488455004,
+          "successful_runs": 1,
+          "elapsed": 1.24
+        }
+      ],
+      "regime": "high_vol",
+      "stage": 2,
+      "stage1_best_score": 909.0889642644848
+    },
+    {
+      "strategy": "garch_v1",
+      "asset": "BTC",
+      "frequency": "high",
+      "best_params": {
+        "mean": "Zero",
+        "p": 1,
+        "q": 1
+      },
+      "best_score": 582.0036877868872,
+      "all_results": [
+        {
+          "params": {
+            "mean": "Zero",
+            "p": 1,
+            "q": 1
+          },
+          "avg_score": 582.0036877868872,
+          "median_score": 582.0036877868872,
+          "successful_runs": 1,
+          "elapsed": 1.71
+        },
+        {
+          "params": {
+            "mean": "Zero",
+            "p": 2,
+            "q": 1
+          },
+          "avg_score": 34725.97691455147,
+          "median_score": 34725.97691455147,
+          "successful_runs": 1,
+          "elapsed": 1.67
+        },
+        {
+          "params": {
+            "mean": "Constant",
+            "p": 1,
+            "q": 1
+          },
+          "avg_score": 583.0304728750124,
+          "median_score": 583.0304728750124,
+          "successful_runs": 1,
+          "elapsed": 1.92
+        },
+        {
+          "params": {
+            "mean": "Constant",
+            "p": 2,
+            "q": 1
+          },
+          "avg_score": 582.0557600138818,
+          "median_score": 582.0557600138818,
+          "successful_runs": 1,
+          "elapsed": 1.75
+        }
+      ],
+      "regime": "ranging",
+      "stage": 2,
+      "stage1_best_score": 582.7540546635593
+    }
+  ]
+}

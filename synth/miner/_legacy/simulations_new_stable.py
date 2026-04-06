@@ -22,8 +22,8 @@ from synth.utils.helpers import convert_prices_to_time_format
 
 # Core simulators (re-use từ simulations_new)
 from synth.miner.core.grach_simulator_v2 import simulate_single_price_path_with_garch as sim_garch_v2
-from synth.miner.strategies.grach_simulator_v4 import simulate_single_price_path_with_garch as sim_garch_v4
-from synth.miner.strategies.grach_simulator_v4_2 import simulate_single_price_path_with_garch as sim_garch_v4_2
+from synth.miner.core.grach_simulator_v4 import simulate_single_price_path_with_garch as sim_garch_v4
+from synth.miner.core.grach_simulator_v4_2 import simulate_single_price_path_with_garch as sim_garch_v4_2
 
 
 SIMULATOR_FUNCTIONS: dict[str, Callable] = {

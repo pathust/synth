@@ -23,6 +23,15 @@ from __future__ import annotations
 
 import sys
 import os
+import warnings
+
+# Suppress arch model DataScaleWarning and other warnings flooding PM2 logs
+warnings.filterwarnings("ignore", category=Warning, module="arch")
+warnings.filterwarnings("ignore", message=".*poorly scaled.*")
+
+# Suppress statsmodels ValueWarning
+warnings.filterwarnings("ignore", category=Warning, module="statsmodels")
+warnings.filterwarnings("ignore", message=".*A date index has been provided.*")
 
 # Ensure project root is on path
 sys.path.insert(
@@ -135,7 +144,10 @@ def main():
         "--window-days",
         type=int,
         default=30,
-        help="Days window for random date selection",
+        help=(
+            "Days before 'now' used to sample random backtest dates only. "
+            "Per-run history length is synth.miner.constants.HISTORY_WINDOW_DAYS."
+        ),
     )
     parser.add_argument(
         "--tune-best",

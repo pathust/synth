@@ -12,7 +12,6 @@ from synth.miner.core.garch_simulator_v2_2 import (
 
 warnings.filterwarnings("ignore")
 
-
 # ==========================================
 # ⚙️ 1. CONFIGURATION (ENSEMBLE STRATEGY)
 # ==========================================
@@ -44,13 +43,11 @@ def get_ensemble_configs(asset: str, time_increment: int) -> List[dict]:
 
     return configs
 
-
 # ==========================================
 # 🛠️ 2. CORE FUNCTIONS
 # ==========================================
 def compute_log_returns(prices: pd.Series) -> pd.Series:
     return np.log(prices.ffill()).diff().dropna()
-
 
 def fit_garch_robust(returns: pd.Series, config: dict):
     scaled_returns = returns * config["scale"]
@@ -85,7 +82,6 @@ def fit_garch_robust(returns: pd.Series, config: dict):
     if last_exc is not None:
         print(f"[WARN] GARCH fit failed for {config['name']}: {last_exc}")
     raise RuntimeError(f"GARCH fit did not converge for {config['name']}")
-
 
 def simulate_paths_vectorized(fitted_res, S0, steps, n_sims, scale, dist_name):
     params = fitted_res.params
@@ -132,7 +128,6 @@ def simulate_paths_vectorized(fitted_res, S0, steps, n_sims, scale, dist_name):
     prices[:, 1:] = S0 * np.exp(cum_ret).T
 
     return prices
-
 
 # ==========================================
 # 🚀 3. MAIN CONTROLLER

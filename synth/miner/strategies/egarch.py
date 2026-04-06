@@ -10,12 +10,8 @@ Best for: BTC, ETH, SOL — high volatility with asymmetric reactions.
 
 from typing import Optional
 import numpy as np
-import pandas as pd
-from arch import arch_model
-from scipy.stats import t as student_t
 
 from synth.miner.strategies.base import BaseStrategy
-
 
 class EgarchStrategy(BaseStrategy):
     name = "egarch"
@@ -33,11 +29,15 @@ class EgarchStrategy(BaseStrategy):
         "mean_model": "Zero",
         "scale": 10000.0,
     }
-    param_grid = {
-        "lookback_days": [14, 30, 45],
-        "mean_model": ["Zero", "Constant"],
-        "p": [1, 2],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        is_high = frequency == "high"
+        grid = {"p": [1, 2], "q": [1]}
+        if is_high:
+            grid["lookback_days"] = [5, 7, 10]
+        else:
+            grid["lookback_days"] = [20, 30, 45]
+        return grid
 
     def simulate(
         self,
@@ -51,118 +51,15 @@ class EgarchStrategy(BaseStrategy):
     ) -> np.ndarray:
         params = self.get_default_params()
         params.update(kwargs)
-
-        if seed is not None:
-            np.random.seed(seed)
-
-        # ── 1. Prepare Data ──
-        timestamps = pd.to_datetime(
-            [int(ts) for ts in prices_dict.keys()], unit="s"
+        from synth.miner.core.egarch_simulator import simulate_egarch
+        return simulate_egarch(
+            prices_dict=prices_dict,
+            asset=asset,
+            time_increment=time_increment,
+            time_length=time_length,
+            n_sims=n_sims,
+            seed=seed,
+            **params
         )
-        full_prices = pd.Series(
-            list(prices_dict.values()), index=timestamps
-        ).sort_index()
-
-        # Lookback window
-        points_per_day = 86400 // time_increment
-        needed = int(params["lookback_days"] * points_per_day)
-        hist_prices = (
-            full_prices.tail(needed) if len(full_prices) > needed else full_prices
-        )
-
-        returns = np.log(hist_prices).diff().dropna()
-        scaled_returns = returns * params["scale"]
-
-        # ── 2. Fit EGARCH ──
-        model = arch_model(
-            scaled_returns,
-            mean=params["mean_model"],
-            vol="EGARCH",
-            p=params["p"],
-            o=params["o"],
-            q=params["q"],
-            dist="StudentsT",
-        )
-        try:
-            res = model.fit(disp="off", show_warning=False)
-        except Exception:
-            # Fallback with rescaling
-            res = model.fit(
-                disp="off", show_warning=False, options={"maxiter": 500},
-                rescale=True,
-            )
-
-        # ── 3. Extract Parameters ──
-        nu = max(float(res.params.get("nu", 8.0)), 3.0)
-        mu = float(res.params.get("mu", res.params.get("Const", 0.0)))
-
-        # ── 4. Simulate paths manually (arch's model.simulate has different API) ──
-        steps = time_length // time_increment
-        S0 = float(hist_prices.iloc[-1])
-
-        # Generate multiple paths using Student-t innovation and EGARCH recursion
-        scale_std = np.sqrt(nu / (nu - 2.0)) if nu > 2 else 1.0
-        z = student_t.rvs(df=nu, size=(steps, n_sims)) / scale_std
-
-        # Reconstruct vol path from EGARCH equation
-        last_vol = float(res.conditional_volatility.iloc[-1])
-
-        # Use the fitted omega, alpha, gamma, beta for EGARCH log-vol recursion
-        omega = float(res.params.get("omega", 0.0))
-        alpha_params = [
-            float(res.params.get(f"alpha[{i+1}]", 0.0))
-            for i in range(params["p"])
-        ]
-        gamma_params = [
-            float(res.params.get(f"gamma[{i+1}]", 0.0))
-            for i in range(params["o"])
-        ]
-        beta_params = [
-            float(res.params.get(f"beta[{i+1}]", 0.0))
-            for i in range(params["q"])
-        ]
-
-        # Simplified EGARCH(1,1,1) simulation
-        alpha1 = alpha_params[0] if alpha_params else 0.0
-        gamma1 = gamma_params[0] if gamma_params else 0.0
-        # Safety: cap persistence to keep process mean-reverting after shocks.
-        beta1 = min(beta_params[0] if beta_params else 0.9, 0.98)
-
-        ln_sigma2_prev = np.full(n_sims, np.log(last_vol**2))
-        z_prev = np.zeros(n_sims)
-
-        returns_bps = np.zeros((steps, n_sims))
-        expected_abs_z = np.sqrt(2 / np.pi)  # E[|z|] for standard normal
-
-        for t in range(steps):
-            # EGARCH: ln(σ²_t) = ω + α(|z_{t-1}| - E|z|) + γ*z_{t-1} + β*ln(σ²_{t-1})
-            ln_sigma2 = (
-                omega
-                + alpha1 * (np.abs(z_prev) - expected_abs_z)
-                + gamma1 * z_prev
-                + beta1 * ln_sigma2_prev
-            )
-            # Safety: tighter clipping in log-variance space to avoid variance explosion.
-            ln_sigma2 = np.clip(ln_sigma2, -15, 12)
-            sigma_t = np.sqrt(np.exp(ln_sigma2))
-
-            # Safety: trim extreme Student-t shocks before mapping to eps_t.
-            z_t = np.clip(z[t, :], -5.0, 5.0)
-            eps_t = sigma_t * z_t
-            returns_bps[t, :] = mu + eps_t
-
-            z_prev = z_t
-            ln_sigma2_prev = ln_sigma2
-
-        # ── 5. Build Prices ──
-        log_ret = returns_bps / params["scale"]
-        # Final guard before exp() to prevent numeric overflow on path generation.
-        cum_ret = np.clip(np.cumsum(log_ret, axis=0), -3.0, 3.0)
-        prices = np.zeros((n_sims, steps + 1))
-        prices[:, 0] = S0
-        prices[:, 1:] = S0 * np.exp(cum_ret).T
-
-        return prices
-
 
 strategy = EgarchStrategy()

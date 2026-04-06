@@ -68,7 +68,8 @@ class BaseStrategy(ABC):
     supported_regimes: list[str] = []
     supported_frequencies: list[str] = []
     default_params: dict = {}
-    param_grid: dict = {}
+    high_param_grid: dict = {}
+    low_param_grid: dict = {}
 
     @abstractmethod
     def simulate(
@@ -97,8 +98,12 @@ class BaseStrategy(ABC):
         """
         ...
 
-    def get_param_grid(self) -> dict:
-        return self.param_grid
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        if frequency == "high" and self.high_param_grid:
+            return self.high_param_grid
+        elif frequency == "low" and self.low_param_grid:
+            return self.low_param_grid
+        return {}
 
     def get_default_params(self) -> dict:
         return self.default_params.copy()

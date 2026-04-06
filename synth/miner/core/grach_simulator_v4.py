@@ -87,6 +87,65 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
 
     return config
 
+# ==========================================
+# ⚙️ 1.5. PARAM GRID CHO TUNER TỪNG TÀI SẢN
+# ==========================================
+def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
+    """
+    Tạo không gian tìm kiếm (param_grid) xoay quanh các giá trị optimal
+    của từng tài sản.
+    """
+    asset_upper = asset.upper()
+    is_xau = asset_upper in ["XAU", "GOLD"]
+    is_high_freq = time_increment <= 60  # Khung 1h (1m steps)
+
+    grid = {
+        "p": [1, 2],
+        "q": [1, 2],
+    }
+
+    if is_xau:
+        grid["lookback_days"] = [10, 15, 20] if is_high_freq else [20, 30, 45]
+        grid["momentum_weight"] = [0.6, 0.8, 0.9]
+        grid["drift_decay"] = [0.98, 0.995]
+    elif asset_upper == "BTC":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [15, 25, 35]
+        grid["momentum_weight"] = [0.3, 0.5, 0.7]
+        grid["drift_decay"] = [0.90, 0.92, 0.95]
+    elif asset_upper == "ETH":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [15, 20, 30]
+        grid["momentum_weight"] = [0.4, 0.6, 0.8]
+        grid["drift_decay"] = [0.90, 0.92, 0.95]
+    elif asset_upper == "SOL":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [10, 15, 25]
+        grid["momentum_weight"] = [0.4, 0.6, 0.8]
+        grid["drift_decay"] = [0.90, 0.92, 0.95]
+    elif asset_upper == "GOOGLX":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [10, 15, 20]
+        grid["momentum_weight"] = [0.6, 0.8, 1.0]
+        grid["drift_decay"] = [0.95, 0.97, 0.99]
+    elif asset_upper == "NVDAX":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [15, 25, 35]
+        grid["momentum_weight"] = [0.6, 0.8, 1.0]
+        grid["drift_decay"] = [0.95, 0.97, 0.99]
+    elif asset_upper == "TSLAX":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [10, 15, 25]
+        grid["momentum_weight"] = [0.7, 0.85, 1.0]
+        grid["drift_decay"] = [0.95, 0.97, 0.99]
+    elif asset_upper == "AAPLX":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [30, 45, 60]
+        grid["momentum_weight"] = [0.3, 0.5, 0.7]
+        grid["drift_decay"] = [0.93, 0.95, 0.97]
+    elif asset_upper == "SPYX":
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [30, 45, 60]
+        grid["momentum_weight"] = [0.1, 0.2, 0.4]
+        grid["drift_decay"] = [0.93, 0.95, 0.97]
+    else:
+        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [30, 45, 60]
+        grid["momentum_weight"] = [0.2, 0.4, 0.6]
+        grid["drift_decay"] = [0.90, 0.92, 0.95]
+
+    return grid
 
 # ==========================================
 # 🛠️ 2. BỘ PHÁT HIỆN TRẠNG THÁI THỊ TRƯỜNG
@@ -108,7 +167,6 @@ def detect_market_regime(returns_bps: pd.Series, window: int = 20):
     if abs(z_score) > 1.5:
         return 'trending', float(recent_mome)
     return 'sideways', 0.0
-
 
 # ==========================================
 # 📈 3. LÕI MÔ PHỎNG NÂNG CAO
@@ -179,7 +237,6 @@ def simulate_paths_advanced(fitted_res, S0, steps, n_sims, config, drift_bps=0.0
     prices[:, 1:] = S0 * np.exp(cum_log_ret).T
 
     return prices
-
 
 # ==========================================
 # 🚀 4. HÀM ĐIỀU KHIỂN CHÍNH (CONTROLLER)

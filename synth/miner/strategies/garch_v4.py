@@ -1,17 +1,16 @@
 """
 garch_v4.py — GJR-GARCH + Skew-t + FHS + regime drift.
 
-Wraps synth.miner.strategies.grach_simulator_v4.
+Wraps synth.miner.core.grach_simulator_v4.
 """
 
 from typing import Optional
 import numpy as np
 
 from synth.miner.strategies.base import BaseStrategy
-from synth.miner.strategies.grach_simulator_v4 import (
+from synth.miner.core.grach_simulator_v4 import (
     simulate_single_price_path_with_garch,
 )
-
 
 class GarchV4Strategy(BaseStrategy):
     name = "garch_v4"
@@ -21,16 +20,13 @@ class GarchV4Strategy(BaseStrategy):
     )
     supported_asset_types = []
     supported_regimes = []
-    default_params = {
-        "lookback_days": 25,
-        "momentum_weight": 0.5,
-        "drift_decay": 0.92,
-    }
-    param_grid = {
-        "lookback_days": [7, 14, 25, 45],
-        "momentum_weight": [0.2, 0.4, 0.6, 0.8],
-        "drift_decay": [0.90, 0.92, 0.96],
-    }
+    default_params = {}
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        from synth.miner.core.grach_simulator_v4 import get_optimal_param_grid
+        time_inc = 60 if frequency == "high" else 300
+        asset_val = asset if asset else "BTC"
+        return get_optimal_param_grid(asset_val, time_inc)
 
     def simulate(
         self,
@@ -53,6 +49,5 @@ class GarchV4Strategy(BaseStrategy):
             seed=seed,
             **params,
         )
-
 
 strategy = GarchV4Strategy()

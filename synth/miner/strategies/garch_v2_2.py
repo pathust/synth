@@ -20,10 +20,12 @@ class GarchV2_2Strategy(BaseStrategy):
     supported_asset_types = []
     supported_regimes = []
     default_params = {}  # uses get_optimal_config() internally
-    param_grid = {
-        "lookback_days": [2.5, 3.0, 3.9],
-        "vol_multiplier": [0.95, 1.0, 1.02, 1.08],
-    }
+
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        from synth.miner.core.garch_simulator_v2_2 import get_optimal_param_grid
+        time_inc = 60 if frequency == "high" else 300
+        asset_val = asset if asset else "BTC"
+        return get_optimal_param_grid(asset_val, time_inc)
 
     def simulate(
         self,
