@@ -31,12 +31,16 @@ STRATEGY_LIST_FOR_ASSET: dict[tuple[str, str], list[tuple[str, float]]] = {
     ("ETH", "high"): [("garch_v2_1", 1.0)],
     ("XAU", "high"): [("garch_v4", 1.0)],
     ("SOL", "high"): [("garch_v2_1", 1.0)],
+    ("HYPE", "high"): [("garch_v2_1", 1.0)],
 
     # LOW
     ("BTC", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("gjr_garch", 0.3)],
     ("ETH", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("regime_switching", 0.3)],
     ("XAU", "low"): [("jump_diffusion", 0.4), ("garch_v4_1", 0.3), ("weekly_regime_switching", 0.3)],
     ("SOL", "low"): [("garch_v4", 0.4), ("arima_equity", 0.3), ("mean_reversion", 0.3)],
+    ("XRP", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("gjr_garch", 0.3)],
+    ("HYPE", "low"): [("garch_v4", 0.4), ("garch_v2_2", 0.3), ("regime_switching", 0.3)],
+    ("WTIOIL", "low"): [("jump_diffusion", 0.4), ("garch_v4_1", 0.3), ("weekly_regime_switching", 0.3)],
 
     # Stocks (low only)
     ("NVDAX", "low"): [("arima_equity", 0.4), ("garch_v4_1", 0.3), ("markov_garch_jump", 0.3)],

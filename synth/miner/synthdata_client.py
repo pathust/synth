@@ -21,10 +21,26 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-VALID_ASSETS = ["BTC", "ETH", "SOL", "XAU", "SPYX", "NVDAX", "TSLAX", "AAPLX", "GOOGLX"]
+VALID_ASSETS = [
+    "BTC",
+    "ETH",
+    "SOL",
+    "XAU",
+    "SPYX",
+    "NVDAX",
+    "TSLAX",
+    "AAPLX",
+    "GOOGLX",
+    "XRP",
+    "HYPE",
+    "WTIOIL",
+]
 
-# Chunking: max days per request to avoid timeouts / huge payloads
-_CHUNK_DAYS_SCORES = 7
+# Chunking: max days per request to avoid timeouts / huge payloads.
+# Note: the API enforces a strict "<= 7 days" constraint, but we've observed
+# rejections at exactly 7d boundaries (likely inclusive range semantics). Keep
+# chunks comfortably below that limit.
+_CHUNK_DAYS_SCORES = 6
 _CHUNK_DAYS_LEADERBOARD = 3
 
 _DEFAULT_TIMEOUT = 60
@@ -76,6 +92,15 @@ class SynthDataClient:
                 if resp.status_code == 200:
                     time.sleep(_RATE_LIMIT_SLEEP)
                     return resp.json()
+
+                if resp.status_code == 429:
+                    # Rate limit: back off and retry.
+                    logger.warning("[SynthData] 429 on %s (attempt %d/%d) → %s",
+                                   path, attempt, _MAX_RETRIES, resp.text[:200])
+                    backoff = max(_RATE_LIMIT_SLEEP, _RETRY_BACKOFF * (2 ** (attempt - 1)))
+                    time.sleep(backoff)
+                    last_exc = RuntimeError("HTTP 429 rate limit")
+                    continue
 
                 if resp.status_code in (400, 404):
                     logger.warning("[SynthData] %d %s params=%s → %s",

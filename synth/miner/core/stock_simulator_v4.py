@@ -38,6 +38,9 @@ def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
     elif asset == "TSLAX":
         lookback = [45, 60, 90] if not is_high else [14, 30]
         return {"lookback_days": lookback, "regime_lookback": [10, 12, 15], "trending_vol_mult": [1.2, 1.25, 1.3]}
+    elif asset == "WTIOIL":
+        lookback = [45, 60, 90] if not is_high else [14, 30, 45]
+        return {"lookback_days": lookback, "regime_lookback": [15, 20, 25], "trending_vol_mult": [1.1, 1.2, 1.3]}
     else:
         lookback = [45, 60, 90] if not is_high else [14, 30, 45]
         return {"lookback_days": lookback, "regime_lookback": [15, 20, 25], "trending_vol_mult": [1.1, 1.2, 1.3]}
@@ -84,6 +87,15 @@ def simulate_weekly_regime_switching(
                 "trending_vol_mult": 1.25,
             }
         )
+    elif asset == "WTIOIL":
+        cfg.update(
+            {
+                "lookback_days": 60,
+                "regime_lookback": 20,
+                "trending_vol_mult": 1.2,
+                "sideways_vol_mult": 0.8,
+            }
+        )
 
     _tunable = (
         "lookback_days",
@@ -119,7 +131,11 @@ def simulate_weekly_regime_switching(
     hist_factors = np.maximum(np.array(hist_factors), 0.05)
     filtered_returns = (raw_returns / hist_factors) * 10000.0
 
-    use_o = 1 if asset != "XAU" else 0
+    use_o = 1
+    if asset == "WTIOIL":
+        use_o = 0
+    elif asset == "XAU":
+        use_o = 0
     model = arch_model(filtered_returns, vol='Garch', p=1, o=use_o, q=1, dist='studentst', mean='Constant')
     
     try:

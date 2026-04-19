@@ -32,10 +32,10 @@ class GjrGarchStrategy(BaseStrategy):
         asset_upper = (asset or "").upper()
         grid = {"p": [1, 2], "q": [1, 2], "o": [1]}
         if is_high:
-            grid["lookback_days"] = [5, 7, 10] if asset_upper in ["BTC","ETH","SOL"] else [10, 15]
+            grid["lookback_days"] = [5, 7, 10] if asset_upper in ["BTC","ETH","SOL","HYPE","XRP"] else [10, 15]
             grid["dist"] = ["StudentsT"]
         else:
-            grid["lookback_days"] = [25, 30, 45] if asset_upper in ["BTC","ETH","SOL"] else [45, 60]
+            grid["lookback_days"] = [25, 30, 45] if asset_upper in ["BTC","ETH","SOL","HYPE","XRP"] else [45, 60]
             grid["dist"] = ["StudentsT", "skewstudent"]
         return grid
 

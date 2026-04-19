@@ -14,9 +14,9 @@ Output layout under --result-dir:
 
 Scoring (aligned with prompt config):
   - **low**: ``time_increment=300`` (5m steps), ``time_length=86400``; with ``--start-day``/``--end-day``,
-    sample every **5 minutes**; bucket CRPS = **mean per UTC calendar day**.
-  - **high**: ``time_increment=60`` (1m), ``time_length=3600``; sample every **1 minute**;
-    bucket CRPS = **mean per UTC hour**.
+    sample every **12 minutes** (start_time cadence only); bucket CRPS = **mean per UTC calendar day**.
+  - **high**: ``time_increment=60`` (1m), ``time_length=3600``; with ``--start-day``/``--end-day``,
+    sample every **5 minutes** (start_time cadence only; data remains 1m); bucket CRPS = **mean per UTC hour**.
 
 Real prices for CRPS are cached on disk by ``cal_reward`` (see ``synth/miner/_legacy/backtest_scripts/compute_score.py``).
 
@@ -41,6 +41,14 @@ import sys
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+import importlib
+import calendar
+
+# Importing miner modules may pull bittensor, which handles global --help before our argparse.
+_SHOW_HELP = False
+if __name__ == "__main__" and ("--help" in sys.argv or "-h" in sys.argv):
+    _SHOW_HELP = True
+    sys.argv = [a for a in sys.argv if a not in ("--help", "-h")]
 
 from synth.db.models import ValidatorRequest
 from synth.miner.compute_score import cal_reward
@@ -99,15 +107,41 @@ def _score_predictions(
     time_increment: int,
     time_length: int,
     predictions,
-) -> float:
+) -> tuple[float, float | None, float | None]:
     vr = ValidatorRequest(
         asset=asset,
         start_time=start_time,
         time_length=time_length,
         time_increment=time_increment,
     )
-    crps, _, _, _real_prices = cal_reward(data_handler, vr, predictions)
-    return float(crps if crps != -1 else float("inf"))
+    crps, _, _, real_prices = cal_reward(data_handler, vr, predictions)
+    if crps == -1:
+        return float("inf"), None, None
+    # Use real_prices for plotting: first and last non-NaN if possible.
+    rp0 = None
+    rpn = None
+    try:
+        if isinstance(real_prices, list) and real_prices:
+            # first
+            for x in real_prices:
+                if x is None:
+                    continue
+                fx = float(x)
+                if fx == fx:
+                    rp0 = fx
+                    break
+            # last
+            for x in reversed(real_prices):
+                if x is None:
+                    continue
+                fx = float(x)
+                if fx == fx:
+                    rpn = fx
+                    break
+    except Exception:
+        rp0 = None
+        rpn = None
+    return float(crps), rp0, rpn
 
 
 def _parse_start_time(s: str) -> datetime:
@@ -117,11 +151,32 @@ def _parse_start_time(s: str) -> datetime:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
+def _utc_iso_z(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
 def _parse_day_utc(s: str) -> date:
     """
     Parse a day string (YYYY-MM-DD) as a UTC date.
     """
     return date.fromisoformat(str(s).strip())
+
+def _parse_hhmm(s: str) -> tuple[int, int]:
+    """
+    Parse a time-of-day "HH:MM" (24h) into (hour, minute).
+    """
+    raw = str(s).strip()
+    if ":" not in raw:
+        raise ValueError(f"Invalid HH:MM time-of-day: {s!r}")
+    hh_s, mm_s = raw.split(":", 1)
+    hh = int(hh_s)
+    mm = int(mm_s)
+    if not (0 <= hh <= 23 and 0 <= mm <= 59):
+        raise ValueError(f"Invalid HH:MM time-of-day: {s!r}")
+    return hh, mm
 
 
 def _align_start_time(dt: datetime, *, frequency: str) -> datetime:
@@ -196,29 +251,140 @@ def _enumerate_start_times(
         cur = cur + step
     return out
 
+
+def _floor_to_step(dt: datetime, step_seconds: int) -> datetime:
+    """
+    Floor a UTC datetime down to the nearest step boundary since epoch.
+    """
+    dt = dt.astimezone(timezone.utc)
+    ts = int(dt.timestamp())
+    floored = ts - (ts % int(step_seconds))
+    return datetime.fromtimestamp(floored, tz=timezone.utc)
+
+
+def _enumerate_cadence_times(
+    start: datetime,
+    end: datetime,
+    *,
+    step_seconds: int,
+) -> list[datetime]:
+    """
+    Enumerate start_times on a fixed cadence grid within [start, end) (end exclusive).
+    Times are floored to the cadence boundary.
+    """
+    start = start.astimezone(timezone.utc)
+    end = end.astimezone(timezone.utc)
+    if end <= start:
+        return []
+
+    step = timedelta(seconds=int(step_seconds))
+    cur = _floor_to_step(start, int(step_seconds))
+    if cur < start:
+        cur = cur + step
+
+    out: list[datetime] = []
+    while cur < end:
+        out.append(cur)
+        cur = cur + step
+    return out
+
 def _enumerate_all_times_in_days(
     start_day: date,
     end_day: date,
     *,
     frequency: str,
+    day_start_hhmm: str | None = None,
+    day_end_hhmm: str | None = None,
 ) -> list[datetime]:
     """
     Enumerate all start_times within [start_day, end_day] inclusive.
 
-    - high: every 1 minute (1m candles)
-    - low:  every 5 minutes (5m candles)
+    Enumerate start_times at a fixed cadence per frequency:
+    - high: every 5 minutes (300s)  — start_time cadence only; data remains 1m
+    - low:  every 12 minutes (720s) — start_time cadence only; data remains 5m
     """
     if end_day < start_day:
         return []
+
     start_dt = datetime(start_day.year, start_day.month, start_day.day, tzinfo=timezone.utc)
     end_exclusive = datetime(end_day.year, end_day.month, end_day.day, tzinfo=timezone.utc) + timedelta(days=1)
-    step_seconds = 60 if frequency == "high" else 300
+
+    # Optional intra-day window (end is exclusive)
+    if day_start_hhmm:
+        hh, mm = _parse_hhmm(day_start_hhmm)
+        start_dt = start_dt.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if day_end_hhmm:
+        hh, mm = _parse_hhmm(day_end_hhmm)
+        # end time-of-day refers to the end_day's clock; exclusive bound.
+        end_exclusive = datetime(end_day.year, end_day.month, end_day.day, tzinfo=timezone.utc).replace(
+            hour=hh, minute=mm, second=0, microsecond=0
+        )
+        # If end <= start and caller passed same day, yield empty.
+        if end_exclusive <= start_dt:
+            return []
+
+    step_seconds = 300 if frequency == "high" else 720
     step = timedelta(seconds=step_seconds)
     out: list[datetime] = []
     cur = start_dt
     while cur < end_exclusive:
         out.append(cur)
         cur = cur + step
+    return out
+
+
+def _add_months(d: date, months: int) -> date:
+    """Add months to a date, clamping day to month length."""
+    y = d.year + (d.month - 1 + months) // 12
+    m = (d.month - 1 + months) % 12 + 1
+    last = calendar.monthrange(y, m)[1]
+    day = min(d.day, last)
+    return date(y, m, day)
+
+
+def _month_bounds(ym: date) -> tuple[date, date]:
+    """Return (first_day, last_day) for ym's month."""
+    first = date(ym.year, ym.month, 1)
+    last_day = calendar.monthrange(ym.year, ym.month)[1]
+    last = date(ym.year, ym.month, last_day)
+    return first, last
+
+
+def _sample_days_last_n_months(
+    *,
+    end_day: date,
+    n_months: int,
+    days_per_month: int,
+    seed: int,
+) -> list[date]:
+    """
+    Sample ``days_per_month`` distinct calendar days from each of the last ``n_months``
+    ending at ``end_day`` (inclusive). For the current month, the eligible range is
+    [month_start, end_day]. For prior months, eligible range is full month.
+    """
+    if n_months <= 0 or days_per_month <= 0:
+        return []
+
+    out: list[date] = []
+    # Anchor on the month that contains end_day, then step backwards.
+    anchor = date(end_day.year, end_day.month, 1)
+    for i in range(int(n_months)):
+        month_anchor = _add_months(anchor, -i)
+        m_start, m_end = _month_bounds(month_anchor)
+        if i == 0:
+            m_end = min(m_end, end_day)
+        # Build candidate days in this month window.
+        n_days = (m_end - m_start).days + 1
+        if n_days <= 0:
+            continue
+        candidates = [m_start + timedelta(days=j) for j in range(n_days)]
+        r = random.Random(int(seed) + 1009 * i)
+        k = min(int(days_per_month), len(candidates))
+        picks = r.sample(candidates, k=k)
+        out.extend(sorted(picks))
+
+    # Sort chronologically for stable output.
+    out = sorted(out)
     return out
 
 
@@ -231,12 +397,43 @@ def _scheduled_dates(
 ) -> list[datetime]:
     if args.start_time:
         return [_align_start_time(_parse_start_time(str(args.start_time)), frequency=frequency)]
+    if getattr(args, "sample_last_n_months", 0):
+        end_day = end.astimezone(timezone.utc).date()
+        days = _sample_days_last_n_months(
+            end_day=end_day,
+            n_months=int(args.sample_last_n_months),
+            days_per_month=int(args.days_per_month),
+            seed=int(args.seed),
+        )
+        out: list[datetime] = []
+        for d in days:
+            out.extend(
+                _enumerate_all_times_in_days(
+                    d,
+                    d,
+                    frequency=frequency,
+                    day_start_hhmm=(str(args.day_start_hhmm) if args.day_start_hhmm else None),
+                    day_end_hhmm=(str(args.day_end_hhmm) if args.day_end_hhmm else None),
+                )
+            )
+        return out
     if args.start_day or args.end_day:
         if not (args.start_day and args.end_day):
             raise SystemExit("Must provide both --start-day and --end-day")
         sd = _parse_day_utc(str(args.start_day))
         ed = _parse_day_utc(str(args.end_day))
-        return _enumerate_all_times_in_days(sd, ed, frequency=frequency)
+        return _enumerate_all_times_in_days(
+            sd,
+            ed,
+            frequency=frequency,
+            day_start_hhmm=(str(args.day_start_hhmm) if args.day_start_hhmm else None),
+            day_end_hhmm=(str(args.day_end_hhmm) if args.day_end_hhmm else None),
+        )
+    # If user explicitly provided a datetime window, enumerate on fixed cadence
+    # (high=5m, low=12m) within [start, end) regardless of --all/--num-runs.
+    if args.start_date and args.end_date:
+        step_seconds = 300 if frequency == "high" else 720
+        return _enumerate_cadence_times(start, end, step_seconds=step_seconds)
     if args.all:
         return _enumerate_start_times(start, end, frequency=frequency)
     return _sample_start_times(
@@ -301,6 +498,8 @@ def _fingerprint(
         "time_length": tl,
         "num_sims": int(args.num_sims),
         "seed": int(args.seed),
+        "sample_last_n_months": int(getattr(args, "sample_last_n_months", 0) or 0),
+        "days_per_month": int(getattr(args, "days_per_month", 0) or 0),
         "start_day": args.start_day,
         "end_day": args.end_day,
         "start_date": args.start_date,
@@ -434,6 +633,9 @@ def _plot_one_asset(
     asset: str,
     frequency: str,
     rows: list[dict],
+    *,
+    entry_label: str = "entry",
+    legacy_label: str = "entry_old",
 ) -> dict[str, str]:
     import matplotlib
 
@@ -445,9 +647,19 @@ def _plot_one_asset(
     xs = list(range(n))
     entry_vals = [_crps_scalar_for_plot(r.get("entry_crps")) for r in rows_s]
     legacy_vals = [_crps_scalar_for_plot(r.get("entry_legacy_crps")) for r in rows_s]
+    price_vals = []
+    for r in rows_s:
+        p = r.get("real_price_start")
+        try:
+            fp = float(p)
+        except (TypeError, ValueError):
+            fp = float("nan")
+        if fp == float("inf") or fp == float("-inf"):
+            fp = float("nan")
+        price_vals.append(fp)
 
     width = max(10, min(28, 0.006 * n + 8))
-    title = f"CRPS per sample (entry vs entry_old), n={n}"
+    title = f"CRPS per sample ({entry_label} vs {legacy_label}), n={n}"
     xlabel = "sample index (sorted by start_time)"
     lw = 0.9 if n > 300 else 1.2
 
@@ -457,17 +669,27 @@ def _plot_one_asset(
         ax.text(0.5, 0.5, "no rows", ha="center", va="center", transform=ax.transAxes)
         ax.set_title(title)
     elif n > 300:
-        ax.plot(xs, entry_vals, label="entry", lw=lw)
-        ax.plot(xs, legacy_vals, label="entry_old", lw=lw)
+        ax.plot(xs, entry_vals, label=entry_label, lw=lw)
+        ax.plot(xs, legacy_vals, label=legacy_label, lw=lw)
         ax.set_title(title)
     else:
-        ax.plot(xs, entry_vals, label="entry", marker="o", ms=2, lw=lw)
-        ax.plot(xs, legacy_vals, label="entry_old", marker="o", ms=2, lw=lw)
+        ax.plot(xs, entry_vals, label=entry_label, marker="o", ms=2, lw=lw)
+        ax.plot(xs, legacy_vals, label=legacy_label, marker="o", ms=2, lw=lw)
         ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel("CRPS (lower is better)")
     ax.grid(alpha=0.25)
-    ax.legend()
+    # Secondary axis: real price at start_time (spot), aligned to sample index.
+    if any(v == v for v in price_vals):
+        ax2 = ax.twinx()
+        ax2.plot(xs, price_vals, color="#777777", alpha=0.45, lw=0.9, label="real_price_start")
+        ax2.set_ylabel("Real price (spot)")
+        # Merge legends
+        h1, l1 = ax.get_legend_handles_labels()
+        h2, l2 = ax2.get_legend_handles_labels()
+        ax.legend(h1 + h2, l1 + l2, loc="best")
+    else:
+        ax.legend()
     fig.tight_layout()
     p_line = os.path.join(asset_dir, "crps_compare_line.png")
     fig.savefig(p_line)
@@ -483,8 +705,31 @@ def _missing_plot_files(asset_dir: str) -> list[str]:
     return [name for name in expected if not os.path.isfile(os.path.join(asset_dir, name))]
 
 
+def _load_entry_callable(spec: str):
+    """
+    Load an entry function from a spec like:
+      - synth.miner.entry:generate_simulations
+      - synth.miner.entry_old:generate_simulations_legacy
+    """
+    s = str(spec).strip()
+    if ":" not in s:
+        raise ValueError(
+            f"Invalid entry spec {spec!r}. Expected 'module:function', e.g. "
+            "'synth.miner.entry:generate_simulations'."
+        )
+    mod_name, fn_name = s.split(":", 1)
+    mod = importlib.import_module(mod_name)
+    fn = getattr(mod, fn_name)
+    if not callable(fn):
+        raise TypeError(f"Entry {spec!r} is not callable")
+    label = mod_name.rsplit(".", 1)[-1]
+    if fn_name != "generate_simulations":
+        label = f"{label}.{fn_name}"
+    return fn, label
+
+
 def main() -> None:
-    p = argparse.ArgumentParser(description="Compare entry.py vs entry_old.py (legacy) backtest")
+    p = argparse.ArgumentParser(description="Compare two entry modules (backtest)")
     p.add_argument(
         "--assets",
         nargs="+",
@@ -535,6 +780,26 @@ def main() -> None:
         ),
     )
     p.add_argument(
+        "--sample-last-n-months",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "New mode: sample random days_per_month days from each of the last N months "
+            "(ending at default end_date = now_utc_hour - 2d unless --end-date is set). "
+            "Month N=4 with days_per_month=5 yields ~20 days. "
+            "This mode enumerates start_times within each picked day using the same cadence "
+            "as --start-day/--end-day (high=5m, low=12m)."
+        ),
+    )
+    p.add_argument(
+        "--days-per-month",
+        type=int,
+        default=5,
+        metavar="K",
+        help="With --sample-last-n-months: how many distinct days to sample per month (default: 5).",
+    )
+    p.add_argument(
         "--end-date",
         default=None,
         help=(
@@ -545,12 +810,36 @@ def main() -> None:
     p.add_argument(
         "--start-day",
         default=None,
-        help="If set with --end-day: enumerate ALL start_times within these UTC days (YYYY-MM-DD).",
+        help=(
+            "If set with --end-day: enumerate start_times within these UTC days (YYYY-MM-DD) "
+            "at a fixed cadence (high=5m, low=12m)."
+        ),
     )
     p.add_argument(
         "--end-day",
         default=None,
-        help="If set with --start-day: enumerate ALL start_times within these UTC days (YYYY-MM-DD).",
+        help=(
+            "If set with --start-day: enumerate start_times within these UTC days (YYYY-MM-DD) "
+            "at a fixed cadence (high=5m, low=12m)."
+        ),
+    )
+    p.add_argument(
+        "--day-start-hhmm",
+        default=None,
+        metavar="HH:MM",
+        help=(
+            "Optional (only with --start-day/--end-day): limit start_times to >= this UTC time-of-day, "
+            "e.g. 10:00."
+        ),
+    )
+    p.add_argument(
+        "--day-end-hhmm",
+        default=None,
+        metavar="HH:MM",
+        help=(
+            "Optional (only with --start-day/--end-day): limit start_times to < this UTC time-of-day "
+            "(exclusive), e.g. 11:00."
+        ),
     )
     p.add_argument(
         "--start-time",
@@ -595,6 +884,24 @@ def main() -> None:
         help="If set, write CRPS plots into each asset folder and into _compare/.",
     )
     p.add_argument(
+        "--entry-a",
+        default="synth.miner.entry:generate_simulations",
+        metavar="MODULE:FUNC",
+        help=(
+            "Entry A callable spec. Format 'module:function'. "
+            "Default: synth.miner.entry:generate_simulations"
+        ),
+    )
+    p.add_argument(
+        "--entry-b",
+        default="synth.miner.entry_old:generate_simulations_legacy",
+        metavar="MODULE:FUNC",
+        help=(
+            "Entry B callable spec. Format 'module:function'. "
+            "Default: synth.miner.entry_old:generate_simulations_legacy"
+        ),
+    )
+    p.add_argument(
         "--resume",
         action="store_true",
         help=(
@@ -622,6 +929,9 @@ def main() -> None:
         ),
     )
     args = p.parse_args()
+    if _SHOW_HELP:
+        p.print_help()
+        raise SystemExit(0)
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     compare_root = os.path.join(args.result_dir, _compare_subdir())
@@ -643,9 +953,10 @@ def main() -> None:
 
     data_handler = DataHandler()
 
-    from synth.miner.entry import generate_simulations as entry_generate
-    # Legacy path: entry_old.generate_simulations_legacy (fixed ensemble list, not strategies.yaml).
-    from synth.miner.entry_old import generate_simulations_legacy as entry_legacy_generate
+    entry_generate, entry_label = _load_entry_callable(args.entry_a)
+    entry_legacy_generate, legacy_label = _load_entry_callable(args.entry_b)
+    logger.info("entry_a=%s label=%s", args.entry_a, entry_label)
+    logger.info("entry_b=%s label=%s", args.entry_b, legacy_label)
 
     results: list[dict] = []
     bucket_rows: list[dict] = []
@@ -720,7 +1031,14 @@ def main() -> None:
                 logger.info("[plot-skip] %s: plots already exist", key)
                 continue
             try:
-                plots_a = _plot_one_asset(asset_dir, asset, frequency, cached)
+                plots_a = _plot_one_asset(
+                    asset_dir,
+                    asset,
+                    frequency,
+                    cached,
+                    entry_label=entry_label,
+                    legacy_label=legacy_label,
+                )
                 per_asset_plot_paths[key] = plots_a
                 logger.info(
                     "[plot-from-cache] %s: wrote %s",
@@ -755,7 +1073,10 @@ def main() -> None:
         )
 
         for i, dt in enumerate(dates):
-            st_key = dt.isoformat()
+            dt_utc = dt.astimezone(timezone.utc)
+            st_key = _utc_iso_z(dt_utc)
+            bucket_dt = _bucket_start(dt_utc, frequency=frequency)
+            bucket_key = _utc_iso_z(bucket_dt)
             if st_key in by_st:
                 merged.append(by_st[st_key])
                 continue
@@ -772,7 +1093,9 @@ def main() -> None:
                 "asset": asset,
                 "frequency": frequency,
                 "start_time": st_key,
-                "bucket_start": _bucket_start(dt, frequency=frequency).isoformat(),
+                "start_time_unix": int(dt_utc.timestamp()),
+                "bucket_start": bucket_key,
+                "bucket_start_unix": int(bucket_dt.timestamp()),
                 "time_increment": time_increment,
                 "time_length": time_length,
                 "num_simulations": int(args.num_sims),
@@ -791,15 +1114,23 @@ def main() -> None:
                 )
                 pred_a = out_a.get("predictions")
                 row["entry_ok"] = pred_a is not None
-                row["entry_crps"] = (
-                    _score_predictions(data_handler, asset, dt, time_increment, time_length, pred_a)
-                    if pred_a is not None
-                    else float("inf")
-                )
+                if pred_a is not None:
+                    crps_a, rp0_a, rpn_a = _score_predictions(
+                        data_handler, asset, dt, time_increment, time_length, pred_a
+                    )
+                    row["entry_crps"] = crps_a
+                    row["real_price_start"] = rp0_a
+                    row["real_price_end"] = rpn_a
+                else:
+                    row["entry_crps"] = float("inf")
+                    row["real_price_start"] = None
+                    row["real_price_end"] = None
             except Exception as e:
                 row["entry_ok"] = False
                 row["entry_error"] = str(e)[:200]
                 row["entry_crps"] = float("inf")
+                row["real_price_start"] = None
+                row["real_price_end"] = None
 
             try:
                 out_b = entry_legacy_generate(
@@ -814,7 +1145,7 @@ def main() -> None:
                 pred_b = out_b.get("predictions")
                 row["entry_legacy_ok"] = pred_b is not None
                 row["entry_legacy_crps"] = (
-                    _score_predictions(data_handler, asset, dt, time_increment, time_length, pred_b)
+                    _score_predictions(data_handler, asset, dt, time_increment, time_length, pred_b)[0]
                     if pred_b is not None
                     else float("inf")
                 )
@@ -829,11 +1160,14 @@ def main() -> None:
             new_computed += 1
 
             logger.info(
-                "%s %s %s  entry=%.4f  entry_old=%.4f  Δ=%.4f",
+                "%s %s start=%s bucket=%s  %s=%.4f  %s=%.4f  Δ=%.4f",
                 asset,
                 frequency,
                 st_key,
+                bucket_key,
+                entry_label,
                 float(row["entry_crps"]),
+                legacy_label,
                 float(row["entry_legacy_crps"]),
                 float(row["delta_crps_legacy_minus_entry"]),
             )
@@ -869,7 +1203,14 @@ def main() -> None:
             try:
                 missing_plots = _missing_plot_files(asset_dir)
                 if new_computed > 0 or missing_plots:
-                    plots_a = _plot_one_asset(asset_dir, asset, frequency, merged)
+                    plots_a = _plot_one_asset(
+                        asset_dir,
+                        asset,
+                        frequency,
+                        merged,
+                        entry_label=entry_label,
+                        legacy_label=legacy_label,
+                    )
                     per_asset_plot_paths[key] = plots_a
                     if missing_plots and new_computed == 0:
                         logger.info(
@@ -932,12 +1273,12 @@ def main() -> None:
                 "low": {
                     "time_increment_s": 300,
                     "time_length_s": 86400,
-                    "start_day_range_step_s": 300,
+                    "start_day_range_step_s": 720,
                 },
                 "high": {
                     "time_increment_s": 60,
                     "time_length_s": 3600,
-                    "start_day_range_step_s": 60,
+                    "start_day_range_step_s": 300,
                 },
             },
         },
@@ -1000,9 +1341,9 @@ def main() -> None:
 
                 fig = plt.figure(figsize=(max(10, len(keys_sorted) * 0.8), 6), dpi=140)
                 ax = fig.add_subplot(1, 1, 1)
-                ax.plot(x, entry_mean, label="entry", marker="o", ms=4)
-                ax.plot(x, legacy_mean, label="entry_old", marker="o", ms=4)
-                ax.set_title("Mean CRPS by asset (entry vs entry_old)")
+                ax.plot(x, entry_mean, label=entry_label, marker="o", ms=4)
+                ax.plot(x, legacy_mean, label=legacy_label, marker="o", ms=4)
+                ax.set_title(f"Mean CRPS by asset ({entry_label} vs {legacy_label})")
                 ax.set_ylabel("CRPS (lower is better)")
                 ax.set_xticks(x)
                 ax.set_xticklabels(keys_sorted, rotation=45, ha="right")

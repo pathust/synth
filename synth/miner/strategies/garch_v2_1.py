@@ -1,32 +1,33 @@
 """
-garch_v1.py — GARCH(p,q) Student-t strategy (original).
+garch_v2_1.py — Regime-aware GJR/GARCH (grach_simulator_v2_1).
 
-Wraps synth.miner.core.garch_simulator.
+Same core as production fallback / entry mapping; supports **kwargs for tuning.
 """
 
 from typing import Optional
+
 import numpy as np
 
 from synth.miner.strategies.base import BaseStrategy
-from synth.miner.core.garch_simulator import (
+from synth.miner.core.grach_simulator_v2_1 import (
     simulate_single_price_path_with_garch,
 )
 
-class GarchV1Strategy(BaseStrategy):
-    name = "garch_v1"
-    description = "GARCH(p,q) with Student-t innovations (original simulator)"
+
+class GarchV2_1Strategy(BaseStrategy):
+    name = "garch_v2_1"
+    description = (
+        "GARCH with ER/BBW regime routing, Student-t, optional GJR (grach_simulator_v2_1)"
+    )
     supported_asset_types = []
     supported_regimes = []
-    default_params = {
-        "mean": "Constant",
-        "p": 1,
-        "q": 1,
-    }
+    default_params = {}
 
     def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
-        is_high = frequency == "high"
-        grid = {"mean": ["Constant", "Zero"], "p": [1], "q": [1]}
-        return grid
+        from synth.miner.core.grach_simulator_v2_1 import get_optimal_param_grid
+
+        time_inc = 60 if frequency == "high" else 300
+        return get_optimal_param_grid(asset or "BTC", time_inc)
 
     def simulate(
         self,
@@ -38,8 +39,6 @@ class GarchV1Strategy(BaseStrategy):
         seed: Optional[int] = 42,
         **kwargs,
     ) -> np.ndarray:
-        params = self.get_default_params()
-        params.update(kwargs)
         return simulate_single_price_path_with_garch(
             prices_dict,
             asset=asset,
@@ -47,7 +46,8 @@ class GarchV1Strategy(BaseStrategy):
             time_length=time_length,
             n_sims=n_sims,
             seed=seed,
-            **params,
+            **kwargs,
         )
 
-strategy = GarchV1Strategy()
+
+strategy = GarchV2_1Strategy()

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 
 
@@ -10,7 +10,6 @@ from synth.validator.prompt_config import PromptConfig
 from synth.utils.helpers import (
     get_current_time,
     round_time_to_minutes,
-    new_equities_launch2,
 )
 
 
@@ -42,8 +41,13 @@ class SequentialScheduler:
         prompt_config = self.prompt_config
 
         asset_list = prompt_config.asset_list
-        if get_current_time() <= new_equities_launch2:
-            asset_list = prompt_config.asset_list[:6]
+        # Staged rollout: keep old schedule until launch timestamp.
+        # Mirrors synth-subnet behavior: low uses first 9 assets; high uses first 4 assets.
+        if get_current_time() <= datetime(2026, 4, 10, 14, 0, 0, tzinfo=timezone.utc):
+            if prompt_config.label == "low":
+                asset_list = prompt_config.asset_list[:9]
+            elif prompt_config.label == "high":
+                asset_list = prompt_config.asset_list[:4]
 
         delay = self.select_delay(
             asset_list,

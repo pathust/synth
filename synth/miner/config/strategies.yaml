@@ -1,45 +1,48 @@
-# DRAFT — built from per_regime_winners (best strategy per regime after comparing tuned scores).
-# Patched 3 regime cell(s).
-# Base: /home/user/synth/synth/miner/config/strategies.yaml
-
-version: '2.1'
-updated_at: '2026-04-02T10:58:10Z'
+# DRAFT — majority vote across tuned drafts
+# tune_high_dir: /home/user/synth/result/tune_high (14 files)
+# tune_low_dir:  /home/user/synth/result/tune_low (4 files)
+# Rule: pick most frequent top-1 model per (asset, frequency, regime)
+#
+version: '2.2'
 fallback_chain:
   L1_timeout_ms: 600
   L2_model: garch_v2
   L3_model: garch_v4
+updated_at: '2026-04-07T17:45:20Z'
+source:
+  method: majority_vote_top1_name_and_params
 routing:
   BTC:
     high:
       bull:
         models:
-        - name: jump_diffusion
+        - name: regime_switching
+          weight: 1.0
+          params:
+            lookback_days: 30
+            vol_ratio: 1.5
+      high_vol:
+        models:
+        - name: regime_switching
           weight: 1.0
           params:
             lookback_days: 14
-            jump_vol_scale: 0.8
-      high_vol:
-        models:
-        - name: garch_v4
-          weight: 1.0
-          params:
-            lookback_days: 45
-            momentum_weight: 0.2
-            drift_decay: 0.9
+            vol_ratio: 1.5
       ranging:
         models:
-        - name: ensemble_garch_v2_v4
+        - name: garch_v2
           weight: 1.0
           params:
-            weights:
-            - 0.5
-            - 0.5
+            mean_model: Zero
+            lookback_days: 5
+            vol_multiplier: 1.0
     low:
       bull:
         models:
         - name: garch_v2
           weight: 1.0
           params:
+            mean_model: Constant
             lookback_days: 60
             vol_multiplier: 0.9
       high_vol:
@@ -47,175 +50,187 @@ routing:
         - name: regime_switching
           weight: 1.0
           params:
-            regime_method: er
-            lookback_days: 30
-            trending_vol_mult: 1.0
-            sideways_vol_mult: 0.6
+            lookback_days: 60
+            vol_ratio: 2.0
       ranging:
         models:
-        - name: regime_switching
+        - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
-            regime_method: er
-            lookback_days: 45
-            trending_vol_mult: 1.0
-            sideways_vol_mult: 0.6
+            weights:
+            - 0.5
+            - 0.5
   ETH:
     high:
       bull:
         models:
-        - name: garch_v2
+        - name: egarch
           weight: 1.0
           params:
-            lookback_days: 60
-            vol_multiplier: 1.1
+            p: 1
+            q: 1
+            lookback_days: 5
       high_vol:
-        models:
-        - name: ensemble_garch_v2_v4
-          weight: 1.0
-          params:
-            weights:
-            - 0.6
-            - 0.4
-      ranging:
-        models:
-        - name: garch_v2
-          weight: 1.0
-          params:
-            lookback_days: 30
-            vol_multiplier: 1.1
-    low:
-      bull:
         models:
         - name: garch_v4
           weight: 1.0
           params:
+            p: 2
+            q: 1
             lookback_days: 7
-            momentum_weight: 0.2
+            momentum_weight: 0.4
             drift_decay: 0.9
-      high_vol:
+      ranging:
         models:
-        - name: ensemble_garch_v2_v4
+        - name: garch_v4
           weight: 1.0
           params:
-            weights:
-            - 0.4
-            - 0.6
-      ranging:
+            p: 2
+            q: 1
+            lookback_days: 10
+            momentum_weight: 0.4
+            drift_decay: 0.9
+    low:
+      bull:
+        models:
+        - name: jump_diffusion
+          weight: 1.0
+          params:
+            lookback_days: 30
+            jump_vol_scale: 1.5
+      high_vol:
         models:
         - name: regime_switching
           weight: 1.0
           params:
-            regime_method: er
+            lookback_days: 45
+            vol_ratio: 2.0
+      ranging:
+        models:
+        - name: egarch
+          weight: 1.0
+          params:
+            p: 1
+            q: 1
             lookback_days: 30
-            trending_vol_mult: 1.0
-            sideways_vol_mult: 0.6
   XAU:
     high:
       trending:
         models:
-        - name: ensemble_garch_v2_v4
+        - name: garch_v4
           weight: 1.0
           params:
-            weights:
-            - 0.5
-            - 0.5
+            p: 1
+            q: 1
+            lookback_days: 10
+            momentum_weight: 0.6
+            drift_decay: 0.98
       mean_reverting:
         models:
-        - name: mean_reversion
+        - name: garch_v2
           weight: 1.0
           params:
-            lookback_days: 30
-            half_life_override: null
+            mean_model: Zero
+            lookback_days: 20
+            vol_multiplier: 1.2
     low:
       trending:
+        models:
+        - name: production_baseline
+          weight: 1.0
+          params: {}
+      mean_reverting:
         models:
         - name: garch_v4
           weight: 1.0
           params:
-            lookback_days: 25
-            momentum_weight: 0.8
-            drift_decay: 0.96
-      mean_reverting:
-        models:
-        - name: garch_v2_2
-          weight: 1.0
-          params:
-            lookback_days: 2.5
-            vol_multiplier: 0.95
+            p: 1
+            q: 1
+            lookback_days: 20
+            momentum_weight: 0.6
+            drift_decay: 0.98
   SOL:
     high:
       bull:
         models:
-        - name: garch_v2
+        - name: garch_v4
           weight: 1.0
           params:
-            lookback_days: 14
-            vol_multiplier: 0.8
+            p: 2
+            q: 1
+            lookback_days: 5
+            momentum_weight: 0.4
+            drift_decay: 0.9
       high_vol:
         models:
-        - name: garch_v2
+        - name: garch_v4
           weight: 1.0
           params:
+            p: 1
+            q: 1
             lookback_days: 7
-            vol_multiplier: 1.1
+            momentum_weight: 0.4
+            drift_decay: 0.9
       ranging:
         models:
         - name: regime_switching
           weight: 1.0
           params:
-            regime_method: er
-            lookback_days: 45
-            trending_vol_mult: 1.3
-            sideways_vol_mult: 0.7
+            lookback_days: 30
+            vol_ratio: 1.5
     low:
       bull:
         models:
         - name: garch_v4
           weight: 1.0
           params:
-            lookback_days: 7
-            momentum_weight: 0.2
-            drift_decay: 0.9
+            p: 1
+            q: 1
+            lookback_days: 10
+            momentum_weight: 0.4
+            drift_decay: 0.95
       high_vol:
         models:
-        - name: egarch
+        - name: garch_v4
           weight: 1.0
           params:
-            lookback_days: 14
-            mean_model: Constant
             p: 1
+            q: 1
+            lookback_days: 10
+            momentum_weight: 0.8
+            drift_decay: 0.9
       ranging:
         models:
-        - name: egarch
+        - name: garch_v2
           weight: 1.0
           params:
-            lookback_days: 14
-            mean_model: Zero
-            p: 1
+            mean_model: Constant
+            lookback_days: 60
+            vol_multiplier: 0.9
   NVDAX:
     low:
       market_open:
         models:
-        - name: seasonal_stock
+        - name: garch_v2_2
           weight: 1.0
           params:
-            lookback_days: 10
+            lookback_days: 15.0
+            vol_multiplier: 1.0
       overnight:
         models:
-        - name: weekly_regime_switching
+        - name: garch_v2_2
           weight: 1.0
           params:
-            lookback_days: 45
-            regime_lookback: 20
+            lookback_days: 25.0
+            vol_multiplier: 1.1
       earnings:
         models:
         - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
             weights:
-            - 0.4
-            - 0.6
+            - 0.5
+            - 0.5
       trending:
         models:
         - name: ensemble_garch_v2_v4
@@ -228,27 +243,29 @@ routing:
     low:
       market_open:
         models:
-        - name: ensemble_garch_v2_v4
+        - name: arima_equity
           weight: 1.0
           params:
-            weights:
-            - 0.5
-            - 0.5
+            p: 1
+            q: 1
+            lookback_days: 30
+            off_hours_vol_scale: 0.3
       overnight:
         models:
         - name: weekly_regime_switching
           weight: 1.0
           params:
-            lookback_days: 60
-            regime_lookback: 12
+            lookback_days: 90
+            regime_lookback: 10
+            trending_vol_mult: 1.2
       earnings:
         models:
-        - name: garch_v4
+        - name: weekly_regime_switching
           weight: 1.0
           params:
-            lookback_days: 25
-            momentum_weight: 0.2
-            drift_decay: 0.9
+            lookback_days: 90
+            regime_lookback: 10
+            trending_vol_mult: 1.2
       trending:
         models:
         - name: garch_v4
@@ -261,27 +278,28 @@ routing:
     low:
       market_open:
         models:
-        - name: markov_garch_jump
+        - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
-            nu: 4.0
-            lookback_days: 15
+            weights:
+            - 0.5
+            - 0.5
       overnight:
         models:
-        - name: garch_v4
+        - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
-            lookback_days: 25
-            momentum_weight: 0.6
-            drift_decay: 0.96
+            weights:
+            - 0.5
+            - 0.5
       earnings:
         models:
-        - name: garch_v4
+        - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
-            lookback_days: 25
-            momentum_weight: 0.2
-            drift_decay: 0.9
+            weights:
+            - 0.5
+            - 0.5
       trending:
         models:
         - name: markov_garch_jump
@@ -293,30 +311,26 @@ routing:
     low:
       market_open:
         models:
-        - name: garch_v4
+        - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
-            lookback_days: 25
-            momentum_weight: 0.2
-            drift_decay: 0.9
+            weights:
+            - 0.5
+            - 0.5
       overnight:
         models:
-        - name: regime_switching
+        - name: seasonal_stock
           weight: 1.0
           params:
-            regime_method: er
             lookback_days: 45
-            trending_vol_mult: 1.3
-            sideways_vol_mult: 0.9
       earnings:
         models:
-        - name: regime_switching
+        - name: garch_v2
           weight: 1.0
           params:
-            regime_method: er
-            lookback_days: 45
-            trending_vol_mult: 1.3
-            sideways_vol_mult: 0.9
+            mean_model: Zero
+            lookback_days: 60
+            vol_multiplier: 1.2
       trending:
         models:
         - name: regime_switching
@@ -334,21 +348,22 @@ routing:
           weight: 1.0
           params:
             weights:
-            - 0.4
-            - 0.6
+            - 0.5
+            - 0.5
       overnight:
         models:
-        - name: arima_equity
+        - name: weekly_seasonal
           weight: 1.0
           params:
-            off_hours_vol_scale: 0.2
-            off_hours_mu_scale: 0.05
+            lookback_days: 45
       earnings:
         models:
-        - name: seasonal_stock
+        - name: ensemble_garch_v2_v4
           weight: 1.0
           params:
-            lookback_days: 20
+            weights:
+            - 0.5
+            - 0.5
       trending:
         models:
         - name: ensemble_garch_v2_v4

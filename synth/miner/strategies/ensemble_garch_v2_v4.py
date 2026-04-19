@@ -28,6 +28,17 @@ class EnsembleGarchV2V4Strategy(BaseStrategy):
         "weights": [0.5, 0.5],
     }
 
+    def get_param_grid(self, frequency: str = "low", asset: Optional[str] = None) -> dict:
+        return {
+            "weights": [
+                [0.5, 0.5],
+                [0.33, 0.67],
+                [0.67, 0.33],
+                [0.25, 0.75],
+                [0.75, 0.25],
+            ],
+        }
+
     def simulate(
         self,
         prices_dict: dict,

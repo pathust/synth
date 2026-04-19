@@ -39,7 +39,15 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
     elif asset_upper == "ETH":
         config["lookback_days"] = 3.0 if time_increment <= 60 else 30.0
         config["min_nu"] = 3.0
-        config["vol_multiplier"] = 1.02  # ETH thường có biên độ theo sau BTC nhưng rướn mạnh hơn một chút
+        config["vol_multiplier"] = 1.02
+    elif asset_upper == "HYPE":
+        config["lookback_days"] = 3.0 if time_increment <= 60 else 30.0
+        config["min_nu"] = 3.0
+        config["vol_multiplier"] = 1.02
+    elif asset_upper == "XRP":
+        config["lookback_days"] = 3.0 if time_increment <= 60 else 30.0
+        config["min_nu"] = 3.0
+        config["vol_multiplier"] = 1.02
 
     elif asset_upper == "SOL":
         config["lookback_days"] = 2.5 if time_increment <= 60 else 20.0 # SOL thay đổi tính chất rất nhanh, 2.5 ngày (~3600 nến) là đủ để bắt trend vol hiện tại
@@ -47,12 +55,15 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
         config["vol_multiplier"] = 1.08  # Buff vol lên 8% để bù đắp việc GARCH thường under-predict các cú pump/dump của SOL
 
     elif asset_upper == "XAU":
-        # XAU dính thứ 7, CN và các phiên nghỉ. 
-        # Cố gắng lấy kịch kim dữ liệu cho phép (3.9 ngày để tránh tràn viền data_retention 4 ngày)
         config["lookback_days"] = 3.9 if time_increment <= 60 else 30.0
-        config["min_nu"] = 4.0           # Vàng thuần túy hơn, đuôi ít dày hơn Crypto một chút
-        config["scale"] = 1000.0         # Volatility nến 1m của XAU cực kỳ nhỏ, cần scale mạnh hơn (x1000) để hội tụ
-        config["vol_multiplier"] = 0.95  # GARCH thường over-predict vol của XAU lúc mở phiên, nên hãm lại một chút
+        config["min_nu"] = 4.0           
+        config["scale"] = 1000.0         
+        config["vol_multiplier"] = 0.95  
+    elif asset_upper == "WTIOIL":
+        config["lookback_days"] = 3.9 if time_increment <= 60 else 30.0
+        config["min_nu"] = 4.0           
+        config["scale"] = 1000.0         
+        config["vol_multiplier"] = 0.95  
 
     elif asset_upper == "NVDAX":
         config["lookback_days"] = 20.0   # 20 ngày để nắm bắt đủ các chu kỳ bùng nổ của NVDAX
@@ -91,26 +102,35 @@ def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
     
     grid = {}
     if asset_upper == "BTC":
-        grid["lookback_days"] = [2.0, 3.0, 4.0] if is_high_freq else [20.0, 30.0, 45.0]
-        grid["vol_multiplier"] = [0.95, 1.0, 1.05]
+        grid["lookback_days"] = [2.0, 3.0] if is_high_freq else [20.0, 30.0]
+        grid["vol_multiplier"] = [0.95, 1.0]
     elif asset_upper == "ETH":
-        grid["lookback_days"] = [2.0, 3.0, 4.0] if is_high_freq else [20.0, 30.0, 45.0]
-        grid["vol_multiplier"] = [1.0, 1.02, 1.05]
+        grid["lookback_days"] = [2.0, 3.0] if is_high_freq else [20.0, 30.0]
+        grid["vol_multiplier"] = [1.0, 1.02]
+    elif asset_upper == "HYPE":
+        grid["lookback_days"] = [2.0, 3.0] if is_high_freq else [20.0, 30.0]
+        grid["vol_multiplier"] = [1.0, 1.02]
+    elif asset_upper == "XRP":
+        grid["lookback_days"] = [2.0, 3.0] if is_high_freq else [20.0, 30.0]
+        grid["vol_multiplier"] = [1.0, 1.02]
     elif asset_upper == "SOL":
-        grid["lookback_days"] = [1.5, 2.5, 3.5] if is_high_freq else [15.0, 20.0, 30.0]
-        grid["vol_multiplier"] = [1.02, 1.08, 1.15]
+        grid["lookback_days"] = [1.5, 2.5] if is_high_freq else [15.0, 20.0]
+        grid["vol_multiplier"] = [1.02, 1.08]
     elif asset_upper == "XAU":
-        grid["lookback_days"] = [3.0, 3.9, 5.0] if is_high_freq else [25.0, 30.0, 40.0]
-        grid["vol_multiplier"] = [0.85, 0.95, 1.0]
+        grid["lookback_days"] = [3.0, 3.9] if is_high_freq else [25.0, 30.0]
+        grid["vol_multiplier"] = [0.85, 0.95]
+    elif asset_upper == "WTIOIL":
+        grid["lookback_days"] = [3.0, 3.9] if is_high_freq else [25.0, 30.0]
+        grid["vol_multiplier"] = [0.85, 0.95]
     elif asset_upper in ["NVDAX", "TSLAX", "GOOGLX"]:
-        grid["lookback_days"] = [15.0, 20.0, 25.0]
-        grid["vol_multiplier"] = [1.0, 1.05, 1.10]
+        grid["lookback_days"] = [15.0, 20.0]
+        grid["vol_multiplier"] = [1.0, 1.05]
     elif asset_upper in ["AAPLX", "SPYX"]:
-        grid["lookback_days"] = [20.0, 30.0, 45.0]
-        grid["vol_multiplier"] = [0.90, 0.95, 1.0]
+        grid["lookback_days"] = [20.0, 30.0]
+        grid["vol_multiplier"] = [0.90, 0.95]
     else:
-        grid["lookback_days"] = [2.0, 3.0, 4.0]
-        grid["vol_multiplier"] = [0.95, 1.0, 1.05]
+        grid["lookback_days"] = [2.0, 3.0]
+        grid["vol_multiplier"] = [0.95, 1.0]
 
     return grid
 

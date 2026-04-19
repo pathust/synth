@@ -50,6 +50,10 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
         config["lookback_days"] = 3.0 if ti <= 60 else 30.0
     elif asset_upper == "ETH":
         config["lookback_days"] = 3.0 if ti <= 60 else 30.0
+    elif asset_upper == "HYPE":
+        config["lookback_days"] = 3.0 if ti <= 60 else 30.0
+    elif asset_upper == "XRP":
+        config["lookback_days"] = 3.0 if ti <= 60 else 30.0
     elif asset_upper == "SOL":
         config["lookback_days"] = 2.5 if ti <= 60 else 20.0
     elif asset_upper == "XAU":
@@ -100,27 +104,48 @@ def get_optimal_config(asset: str, time_increment: int, regime_info: dict) -> di
             config["mean_model"] = "Zero"
 
     elif asset.lower() in ["btc", "eth"]:
-        # 1. Bật GJR-GARCH để bắt hiệu ứng hoảng loạn (Giá giảm -> Vol tăng mạnh hơn giá tăng)
         config["grach_o"] = 1
-
-        # 2. Mở khóa đuôi siêu béo để hấp thụ Flash Crash/Pump
         config["min_nu"] = 4.0
-
-        # 3. Kéo dài lookback để pha loãng nhiễu từ các cú Shock gần nhất
         if ti <= 60:
             config["lookback_days"] = 5.0
-
-        # 4. Điều tiết cực đoan qua Regime
         if regime_for_asset["type"] == REGIME_TYPE.SIDEWAYS:
             config["vol_multiplier"] = 0.90
-            config["mean_model"] = "Zero"  # Đi ngang thì không cần đoán hướng
-
+            config["mean_model"] = "Zero"
         elif regime_for_asset["type"] == REGIME_TYPE.TRENDING:
-            config["vol_multiplier"] = 0.95  # Hãm bớt vol lại để tránh bung phễu CRPS sau cú sập/bơm
-            config["mean_model"] = "Zero"  # Ép drift về 0 ở khung HIGH để tránh đâm/vút quá xa do dư chấn
+            config["vol_multiplier"] = 0.95
+            config["mean_model"] = "Zero"
+        else:
+            config["vol_multiplier"] = 0.85
+            config["mean_model"] = "Zero"
 
-        else:  # Trạng thái SHOCK (Cực kỳ hỗn loạn)
-            config["vol_multiplier"] = 0.85  # Hãm cực mạnh dải vol vì eps_prev đang rất khổng lồ
+    elif asset.lower() == "hype":
+        config["grach_o"] = 1
+        config["min_nu"] = 4.0
+        if ti <= 60:
+            config["lookback_days"] = 5.0
+        if regime_for_asset["type"] == REGIME_TYPE.SIDEWAYS:
+            config["vol_multiplier"] = 0.90
+            config["mean_model"] = "Zero"
+        elif regime_for_asset["type"] == REGIME_TYPE.TRENDING:
+            config["vol_multiplier"] = 0.95
+            config["mean_model"] = "Zero"
+        else:
+            config["vol_multiplier"] = 0.85
+            config["mean_model"] = "Zero"
+
+    elif asset.lower() == "xrp":
+        config["grach_o"] = 1
+        config["min_nu"] = 4.0
+        if ti <= 60:
+            config["lookback_days"] = 5.0
+        if regime_for_asset["type"] == REGIME_TYPE.SIDEWAYS:
+            config["vol_multiplier"] = 0.90
+            config["mean_model"] = "Zero"
+        elif regime_for_asset["type"] == REGIME_TYPE.TRENDING:
+            config["vol_multiplier"] = 0.95
+            config["mean_model"] = "Zero"
+        else:
+            config["vol_multiplier"] = 0.85
             config["mean_model"] = "Zero"
 
     return config
@@ -192,7 +217,44 @@ def get_stock_refined_config(asset: str, time_increment: int, regime: dict) -> d
             config["vol_multiplier"] = 1.0
 
     return config
+
+
+def get_optimal_param_grid(asset: str, time_increment: int) -> Dict[str, list]:
+    """
+    Hyperparameter grid for tuning (merged on top of ``get_optimal_config`` at runtime).
+    Keys must match fields used in ``fit_garch_optimized`` / ``simulate_garch_paths``.
+    """
+    asset_upper = asset.upper()
+    is_high = time_increment <= 60
     
+    # 🌟 Reduced from combinatorial explosion to essential pairs
+    grid: Dict[str, list] = {
+        "min_nu": [6.0, 8.0],
+        "vol_multiplier": [0.95, 1.0],
+        "grach_o": [1],  # Always use GJR-GARCH asymmetric effect 
+        "mean_model": ["Constant", "Zero"],
+    }
+    
+    if asset_upper in ("BTC", "ETH"):
+        grid["lookback_days"] = [3.0, 5.0] if is_high else [25.0, 35.0]
+    elif asset_upper == "HYPE":
+        grid["lookback_days"] = [3.0, 5.0] if is_high else [25.0, 35.0]
+    elif asset_upper == "XRP":
+        grid["lookback_days"] = [3.0, 5.0] if is_high else [25.0, 35.0]
+    elif asset_upper == "SOL":
+        grid["lookback_days"] = [2.5, 5.0] if is_high else [12.0, 20.0]
+        grid["vol_multiplier"] = [1.0, 1.05]
+    elif asset_upper in ("XAU", "GOLD"):
+        grid["lookback_days"] = [3.0, 5.0] if is_high else [30.0, 45.0]
+    elif asset_upper in STOCK_ASSETS:
+        grid["lookback_days"] = [5.0, 10.0] if is_high else [10.0, 20.0]
+        grid["min_nu"] = [8.0, 12.0]
+    else:
+        grid["lookback_days"] = [5.0] if is_high else [20.0]
+
+    return grid
+
+
 # ==========================================
 # 🛠️ 2. CORE FUNCTIONS
 # ==========================================
@@ -292,7 +354,15 @@ def simulate_garch_paths(fitted_res, S0, steps, n_sims, config, seed=None):
 # ==========================================
 # 🚀 3. MAIN SIMULATION CONTROLLER
 # ==========================================
-def simulate_single_price_path_with_garch(prices_dict, asset: str, time_increment: int, time_length: int, n_sims: int, seed: Optional[int] = 42):
+def simulate_single_price_path_with_garch(
+    prices_dict,
+    asset: str,
+    time_increment: int,
+    time_length: int,
+    n_sims: int,
+    seed: Optional[int] = 42,
+    **kwargs,
+):
     """
     Simulate a single price path with GARCH(1,1) model.
     - prices_dict: dictionary of prices {"timestamp": "price"}
@@ -300,6 +370,7 @@ def simulate_single_price_path_with_garch(prices_dict, asset: str, time_incremen
     - time_length: time length in seconds
     - n_sims: number of simulation paths
     - seed: seed for the random number generator
+    - kwargs: optional overrides merged into the regime-based config (tuning).
     Returns:
       prices: ndarray shape (n_sims, steps+1) including initial price at index 0
     """
@@ -316,6 +387,8 @@ def simulate_single_price_path_with_garch(prices_dict, asset: str, time_incremen
         "bbw": regime_bbw
     }
     config = get_optimal_config(asset, time_increment, regime_info)
+    if kwargs:
+        config.update(kwargs)
     print(f"Regime: {regime_info} \n Config: {config}")
     
     # 3. Cắt gọt dữ liệu (Lookback Window)

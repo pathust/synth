@@ -24,7 +24,10 @@ import bittensor as bt
 
 # import base miner class which takes care of most of the boilerplate
 from synth.base.miner import BaseMinerNeuron
-from synth.miner.entry import generate_simulations
+if os.getenv("SYNTH_ENTRY_IMPL", "").strip().lower() in {"tuned", "entry_new", "new"}:
+    from synth.miner.entry_new import generate_simulations  # type: ignore
+else:
+    from synth.miner.entry import generate_simulations
 from synth.protocol import Simulation
 
 

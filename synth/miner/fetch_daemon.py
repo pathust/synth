@@ -52,7 +52,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────────────────────
-CRYPTO_ASSETS = ["BTC", "ETH", "SOL"]
+CRYPTO_ASSETS = ["BTC", "ETH", "SOL", "XRP", "HYPE"]
 PERIODIC_ASSETS = ASSETS_PERIODIC_FETCH_PRICE_DATA
 ALL_ASSETS = list(dict.fromkeys(CRYPTO_ASSETS + PERIODIC_ASSETS))
 

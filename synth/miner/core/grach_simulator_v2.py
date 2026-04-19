@@ -54,25 +54,25 @@ def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
     is_high_freq = time_increment <= 60
     
     grid = {}
+    grid["mean_model"] = ["Constant", "Zero"]
+    
     if is_high_freq:
-        grid["mean_model"] = ["Zero"]
         if is_crypto:
-            grid["lookback_days"] = [5, 7, 10]
-            grid["vol_multiplier"] = [0.9, 1.0, 1.1]
+            grid["lookback_days"] = [5, 7]
+            grid["vol_multiplier"] = [0.9, 1.0]
         else:
-            grid["lookback_days"] = [10, 14, 20]
-            grid["vol_multiplier"] = [0.8, 1.0, 1.2]
+            grid["lookback_days"] = [10, 14]
+            grid["vol_multiplier"] = [0.8, 1.0]
     else:
-        grid["mean_model"] = ["Zero", "Constant"]
         if is_crypto:
-            grid["lookback_days"] = [30, 45, 60]
-            grid["vol_multiplier"] = [0.9, 1.0, 1.1]
+            grid["lookback_days"] = [30, 45]
+            grid["vol_multiplier"] = [0.9, 1.0]
         else:
-            grid["lookback_days"] = [60, 90, 120]
-            grid["vol_multiplier"] = [0.8, 1.0, 1.2]
+            grid["lookback_days"] = [60, 90]
+            grid["vol_multiplier"] = [0.8, 1.0]
             
     if asset_lower == "spyx":
-        grid["vol_multiplier"] = [0.8, 0.9, 1.0]
+        grid["vol_multiplier"] = [0.8, 0.9]
 
     return grid
 

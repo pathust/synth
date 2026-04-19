@@ -14,6 +14,7 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
     """
     asset_upper = asset.upper()
     is_xau = asset_upper in ["XAU", "GOLD"]
+    is_wtioil = asset_upper == "WTIOIL"
     is_high_freq = time_increment <= 60  # Khung 1h (1m steps)
 
     config = {
@@ -21,7 +22,7 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
         "dist": "skewt",       # Skew Student-t để bắt đuôi lệch
         "vol_model": "GARCH",
         "p": 1, "q": 1,
-        "o": 1 if not is_xau else 0,  # GJR-GARCH (o=1) cho Crypto, GARCH thường cho Vàng
+        "o": 1 if not (is_xau or is_wtioil) else 0,  # GJR-GARCH (o=1) cho Crypto, GARCH thường cho Vàng
         "simulation_method": "FHS"   # Luôn ưu tiên FHS để tối ưu CRPS
     }
 
@@ -30,6 +31,11 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
         config["lookback_days"] = 15 if is_high_freq else 30
         config["momentum_weight"] = 0.8   # Vàng bám trend rất mạnh
         config["drift_decay"] = 0.995     # Lực trend bền (giảm chậm)
+    elif is_wtioil:
+        config["mean_model"] = "Constant"
+        config["lookback_days"] = 15 if is_high_freq else 30
+        config["momentum_weight"] = 0.8   
+        config["drift_decay"] = 0.995     
     elif asset_upper == "BTC":
         # BTC (low): phản ứng nhanh khi đổi pha pump/dump 4-5 ngày.
         # Thu hẹp lookback để bám regime mới và tăng nhẹ trọng số momentum.
@@ -38,7 +44,16 @@ def get_optimal_config(asset: str, time_increment: int) -> dict:
         config["momentum_weight"] = 0.5
         config["drift_decay"] = 0.92
     elif asset_upper == "ETH":
-        # ETH (low): tập trung vào sóng hiện tại và tăng lực bám trend.
+        config["mean_model"] = "Zero"
+        config["lookback_days"] = 7 if is_high_freq else 20
+        config["momentum_weight"] = 0.6
+        config["drift_decay"] = 0.92
+    elif asset_upper == "HYPE":
+        config["mean_model"] = "Zero"
+        config["lookback_days"] = 7 if is_high_freq else 20
+        config["momentum_weight"] = 0.6
+        config["drift_decay"] = 0.92
+    elif asset_upper == "XRP":
         config["mean_model"] = "Zero"
         config["lookback_days"] = 7 if is_high_freq else 20
         config["momentum_weight"] = 0.6
@@ -97,53 +112,66 @@ def get_optimal_param_grid(asset: str, time_increment: int) -> dict:
     """
     asset_upper = asset.upper()
     is_xau = asset_upper in ["XAU", "GOLD"]
+    is_wtioil = asset_upper == "WTIOIL"
     is_high_freq = time_increment <= 60  # Khung 1h (1m steps)
 
     grid = {
-        "p": [1, 2],
-        "q": [1, 2],
+        "p": [1],
+        "q": [1],
     }
 
     if is_xau:
-        grid["lookback_days"] = [10, 15, 20] if is_high_freq else [20, 30, 45]
-        grid["momentum_weight"] = [0.6, 0.8, 0.9]
+        grid["lookback_days"] = [10, 15] if is_high_freq else [20, 30]
+        grid["momentum_weight"] = [0.6, 0.8]
+        grid["drift_decay"] = [0.98, 0.995]
+    elif is_wtioil:
+        grid["lookback_days"] = [10, 15] if is_high_freq else [20, 30]
+        grid["momentum_weight"] = [0.6, 0.8]
         grid["drift_decay"] = [0.98, 0.995]
     elif asset_upper == "BTC":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [15, 25, 35]
-        grid["momentum_weight"] = [0.3, 0.5, 0.7]
-        grid["drift_decay"] = [0.90, 0.92, 0.95]
+        grid["lookback_days"] = [5, 7] if is_high_freq else [15, 25]
+        grid["momentum_weight"] = [0.3, 0.5]
+        grid["drift_decay"] = [0.90, 0.92]
     elif asset_upper == "ETH":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [15, 20, 30]
-        grid["momentum_weight"] = [0.4, 0.6, 0.8]
-        grid["drift_decay"] = [0.90, 0.92, 0.95]
+        grid["lookback_days"] = [5, 7] if is_high_freq else [15, 20]
+        grid["momentum_weight"] = [0.4, 0.6]
+        grid["drift_decay"] = [0.90, 0.92]
+    elif asset_upper == "HYPE":
+        grid["lookback_days"] = [5, 7] if is_high_freq else [15, 20]
+        grid["momentum_weight"] = [0.4, 0.6]
+        grid["drift_decay"] = [0.90, 0.92]
+    elif asset_upper == "XRP":
+        grid["lookback_days"] = [5, 7] if is_high_freq else [15, 20]
+        grid["momentum_weight"] = [0.4, 0.6]
+        grid["drift_decay"] = [0.90, 0.92]
     elif asset_upper == "SOL":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [10, 15, 25]
-        grid["momentum_weight"] = [0.4, 0.6, 0.8]
-        grid["drift_decay"] = [0.90, 0.92, 0.95]
+        grid["lookback_days"] = [5, 7] if is_high_freq else [10, 15]
+        grid["momentum_weight"] = [0.4, 0.6]
+        grid["drift_decay"] = [0.90, 0.92]
     elif asset_upper == "GOOGLX":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [10, 15, 20]
-        grid["momentum_weight"] = [0.6, 0.8, 1.0]
-        grid["drift_decay"] = [0.95, 0.97, 0.99]
+        grid["lookback_days"] = [5, 10] if is_high_freq else [10, 15]
+        grid["momentum_weight"] = [0.6, 0.8]
+        grid["drift_decay"] = [0.95, 0.97]
     elif asset_upper == "NVDAX":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [15, 25, 35]
-        grid["momentum_weight"] = [0.6, 0.8, 1.0]
-        grid["drift_decay"] = [0.95, 0.97, 0.99]
+        grid["lookback_days"] = [5, 10] if is_high_freq else [15, 25]
+        grid["momentum_weight"] = [0.6, 0.8]
+        grid["drift_decay"] = [0.95, 0.97]
     elif asset_upper == "TSLAX":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [10, 15, 25]
-        grid["momentum_weight"] = [0.7, 0.85, 1.0]
-        grid["drift_decay"] = [0.95, 0.97, 0.99]
+        grid["lookback_days"] = [5, 10] if is_high_freq else [10, 15]
+        grid["momentum_weight"] = [0.7, 0.85]
+        grid["drift_decay"] = [0.95, 0.97]
     elif asset_upper == "AAPLX":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [30, 45, 60]
-        grid["momentum_weight"] = [0.3, 0.5, 0.7]
-        grid["drift_decay"] = [0.93, 0.95, 0.97]
+        grid["lookback_days"] = [5, 10] if is_high_freq else [30, 45]
+        grid["momentum_weight"] = [0.3, 0.5]
+        grid["drift_decay"] = [0.95, 0.97]
     elif asset_upper == "SPYX":
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [30, 45, 60]
-        grid["momentum_weight"] = [0.1, 0.2, 0.4]
-        grid["drift_decay"] = [0.93, 0.95, 0.97]
+        grid["lookback_days"] = [5, 10] if is_high_freq else [30, 45]
+        grid["momentum_weight"] = [0.1, 0.2]
+        grid["drift_decay"] = [0.95, 0.97]
     else:
-        grid["lookback_days"] = [5, 7, 10] if is_high_freq else [30, 45, 60]
-        grid["momentum_weight"] = [0.2, 0.4, 0.6]
-        grid["drift_decay"] = [0.90, 0.92, 0.95]
+        grid["lookback_days"] = [5, 10] if is_high_freq else [30, 45]
+        grid["momentum_weight"] = [0.2, 0.4]
+        grid["drift_decay"] = [0.90, 0.92]
 
     return grid
 
