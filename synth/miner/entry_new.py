@@ -21,46 +21,39 @@ from synth.utils.helpers import convert_prices_to_time_format
 from synth.validator.response_validation_v2 import validate_responses
 
 
-# Tuned winners (picked by lowest train_avg_score) from:
-# result/tune_garch_grid_pm2_20260408_052225/garch_grid_tune_20260408_070645.json
+# Tuned winners from tune_garch_grid drafts (tournament best full-range CRPS):
+# - result/tune_garch_grid/strategies_draft_garch_grid_20260420_062258.yaml (BTC, ETH)
+# - result/tune_garch_grid/strategies_draft_garch_grid_20260420_091103.yaml (SOL, XAU)
 _HIGH_FIXED: dict[str, tuple[str, dict]] = {
     "BTC": (
-        "garch_v4",
+        "ensemble_garch_v2_v4",
         {
-            "p": 2,
-            "q": 1,
-            "lookback_days": 5,
-            "momentum_weight": 0.3,
-            "drift_decay": 0.9,
+            "weights": [0.75, 0.25],
         },
     ),
     "ETH": (
-        "garch_v2_1",
+        "garch_v2",
         {
-            "min_nu": 8.0,
-            "vol_multiplier": 0.95,
-            "grach_o": 1,
-            "mean_model": "Constant",
-            "lookback_days": 5.0,
+            "mean_model": "Zero",
+            "lookback_days": 7,
+            "vol_multiplier": 0.9,
         },
     ),
     "SOL": (
-        "garch_v2_1",
+        "garch_v2",
         {
-            "min_nu": 8.0,
-            "vol_multiplier": 0.88,
-            "grach_o": 0,
             "mean_model": "Zero",
-            "lookback_days": 5.0,
+            "lookback_days": 7,
+            "vol_multiplier": 0.9,
         },
     ),
     "XAU": (
         "garch_v2_1",
         {
-            "min_nu": 10.0,
-            "vol_multiplier": 1.05,
+            "min_nu": 8.0,
+            "vol_multiplier": 1.0,
             "grach_o": 1,
-            "mean_model": "Constant",
+            "mean_model": "Zero",
             "lookback_days": 3.0,
         },
     ),
